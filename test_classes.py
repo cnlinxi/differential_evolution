@@ -1,5 +1,5 @@
 import numpy
-from differential_evolution import VariantDifferentialEvolution as DifferentialEvolution
+from differential_evolution import DifferentialEvolution, SingleGenerationMixin
 
 class NDimensionalRozenbrockDifferentialEvolution(DifferentialEvolution):
     '''
@@ -85,11 +85,25 @@ class PolynomialDifferentialEvolution(DifferentialEvolution):
         '''
         return numpy.array([self.bounds[0]]), numpy.array([self.bounds[1]])
 
+class VariantNDimensionalRozenbrockDifferentialEvolution(SingleGenerationMixin, NDimensionalRozenbrockDifferentialEvolution):
+    pass
 
-problem = NDimensionalRozenbrockDifferentialEvolution(n=2)
+def test():
+    problem = NDimensionalRozenbrockDifferentialEvolution(n=8)
+    problem.verbosity = 0
+    for i in xrange(10):
+        solution, iterations = problem.solve()
+        print 'Standard Solution %s: %s'%(i, solution)
+    problem = VariantNDimensionalRozenbrockDifferentialEvolution(n=8)
+    problem.verbosity = 0
+    for i in xrange(10):
+        solution, iterations = problem.solve()
+        print 'Variant Solution %s: %s'%(i, solution)
+
+
+
 # problem = EasomDifferentialEvolution()
 # problem = PolynomialDifferentialEvolution([1,-10,21,40,-100],[-10,10])
-problem.decimal_precision = 2
-problem.verbosity = 1
-solution, iterations = problem.solve()
-print '\nSolution:\n%s\n\nTotal iterations: %s'%(solution, iterations)
+# print '\nSolution:\n%s\n\nTotal iterations: %s'%(solution, iterations)
+
+test()

@@ -1,6 +1,6 @@
 # We rely on numpy for array/vector operations and advanced maths.
-# Also use time information for logging and multiprocessing for threaded calcs.
-import numpy, datetime, multiprocessing
+# Also use time information for logging
+import numpy, datetime
 
 class DifferentialEvolution(object):
     '''
@@ -238,12 +238,11 @@ class DifferentialEvolution(object):
         # If we get to here, we haven't achieved convergence. Raise an error.
         raise Exception('The solution did not converge')
 
-class VariantDifferentialEvolution(DifferentialEvolution):
+class SingleGenerationMixin(object):
     '''
     This is the memory-saving DE variant described in Section 5.2.4 of Price
     and Storn's 'Differential Evolution'. There is only a single population
     and there is no clear distinction between generations.
-    This version does not support threading.
     '''
     def de(self):
         '''
