@@ -1,5 +1,5 @@
 import numpy
-from differential_evolution import DifferentialEvolution
+from differential_evolution import VariantDifferentialEvolution as DifferentialEvolution
 
 class NDimensionalRozenbrockDifferentialEvolution(DifferentialEvolution):
     '''
@@ -86,10 +86,10 @@ class PolynomialDifferentialEvolution(DifferentialEvolution):
         return numpy.array([self.bounds[0]]), numpy.array([self.bounds[1]])
 
 
-problem = NDimensionalRozenbrockDifferentialEvolution(n=5)
+problem = NDimensionalRozenbrockDifferentialEvolution(n=2)
 # problem = EasomDifferentialEvolution()
 # problem = PolynomialDifferentialEvolution([1,-10,21,40,-100],[-10,10])
-problem.decimal_precision = 3
-problem.verbosity = 2
+problem.decimal_precision = 2
+problem.verbosity = 1
 solution, iterations = problem.solve()
 print '\nSolution:\n%s\n\nTotal iterations: %s'%(solution, iterations)

@@ -1,7 +1,6 @@
 # We rely on numpy for array/vector operations and advanced maths.
-import numpy
-# Also use time information for logging
-import datetime
+# Also use time information for logging and multiprocessing for threaded calcs.
+import numpy, datetime, multiprocessing
 
 class DifferentialEvolution(object):
     '''
@@ -11,7 +10,6 @@ class DifferentialEvolution(object):
     DE is an optimisation algorithm that minimises an n-dimensional
     cost function.
     '''
-
     def __init__(self):
         '''
         Specify the problem default parameters as attributes here.
@@ -107,7 +105,7 @@ class DifferentialEvolution(object):
         '''
         mutant = v3 + (self.f * (v2 - v1))
         if self.absolute_bounds:
-            for i in xrange(len(mutant)):
+            for i in xrange(self.dimensionality):
                 if mutant[i] < self.min_vector[i]:
                     mutant[i] = self.min_vector[i]
                 elif mutant[i] > self.max_vector[i]:
@@ -192,10 +190,32 @@ class DifferentialEvolution(object):
         print '%s%s%s%s'%(str(iteration).ljust(cs/2), str(mean).ljust(cs),
             str(std).ljust(cs), str(best).ljust(cs/2))
 
+    def de(self):
+        '''
+        Two generation, unthreaded version
+        '''
+        # Loop over the vectors in the population
+        trial_population = []
+        for j, parent in enumerate(self.population):
+            parent_cost = self.costs[j]
+            # Select three random vectors from the population (not j)
+            selected = []
+            while len(selected) < 3:
+                randint = numpy.random.randint(self.population_size)
+                if randint != j:
+                    selected.append(self.population[randint])
+            # Go through the mutation/crossover process
+            mutant = self.mutation(*selected)
+            trial = self.crossover(parent, mutant)
+            trial_population.append(trial)
+        for j, trial in enumerate(trial_population):
+            # Select the winner and update the population/costs.
+            self.crown_tournament_victor(trial, j)
+
     def solve(self):
         '''
-        This is the main function which implements the differential evolution
-        loop.
+        This is the main function which initiates the solution process
+        and returns a final answer.
         '''
         self.population = self.initialise_population()
         self.costs = self.compute_all_costs()
@@ -204,20 +224,8 @@ class DifferentialEvolution(object):
             self.basic_logging()
         # Start iterating.
         for i in xrange(self.max_iterations):
-            # Loop over the vectors in the population
-            for j in xrange(self.population_size):
-                parent_cost = self.costs[j]
-                # Select three random vectors from the population (not j)
-                selected = []
-                while len(selected) < 3:
-                    randint = numpy.random.randint(self.population_size)
-                    if randint != j:
-                        selected.append(self.population[randint])
-                # Go through the mutation/crossover process
-                mutant = self.mutation(*selected)
-                trial = self.crossover(self.population[j], mutant)
-                # Select the winner and update the population/costs.
-                self.crown_tournament_victor(trial, j)
+            # Evolve the next generation
+            self.de()
             # If logging, show output
             if self.verbosity > 1:
                 self.log_solution(i+1)
@@ -229,3 +237,29 @@ class DifferentialEvolution(object):
                 return mean, i+1
         # If we get to here, we haven't achieved convergence. Raise an error.
         raise Exception('The solution did not converge')
+
+class VariantDifferentialEvolution(DifferentialEvolution):
+    '''
+    This is the memory-saving DE variant described in Section 5.2.4 of Price
+    and Storn's 'Differential Evolution'. There is only a single population
+    and there is no clear distinction between generations.
+    This version does not support threading.
+    '''
+    def de(self):
+        '''
+        Single generation, memory saving version
+        '''
+        # Loop over the vectors in the population
+        for j in xrange(self.population_size):
+            parent_cost = self.costs[j]
+            # Select three random vectors from the population (not j)
+            selected = []
+            while len(selected) < 3:
+                randint = numpy.random.randint(self.population_size)
+                if randint != j:
+                    selected.append(self.population[randint])
+            # Go through the mutation/crossover process
+            mutant = self.mutation(*selected)
+            trial = self.crossover(self.population[j], mutant)
+            # Select the winner and update the population/costs.
+            self.crown_tournament_victor(trial, j)
