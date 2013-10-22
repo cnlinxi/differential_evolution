@@ -23,7 +23,7 @@ class NDimensionalRozenbrockDifferentialEvolution(DifferentialEvolution):
         '''
         Get lower and upper bounds for the initial trial population
         '''
-        bound = numpy.array([3] * self.n)
+        bound = numpy.array([2] * self.n)
         return -1 * bound, bound
 
 
@@ -88,22 +88,24 @@ class PolynomialDifferentialEvolution(DifferentialEvolution):
 class VariantNDimensionalRozenbrockDifferentialEvolution(SingleGenerationMixin, NDimensionalRozenbrockDifferentialEvolution):
     pass
 
-def test():
-    problem = NDimensionalRozenbrockDifferentialEvolution(n=8)
+def test(n):
+    problem = NDimensionalRozenbrockDifferentialEvolution(n=n)
     problem.verbosity = 0
     for i in xrange(10):
         solution, iterations = problem.solve()
         print 'Standard Solution %s: %s'%(i, solution)
-    problem = VariantNDimensionalRozenbrockDifferentialEvolution(n=8)
+    problem = VariantNDimensionalRozenbrockDifferentialEvolution(n=n)
     problem.verbosity = 0
     for i in xrange(10):
         solution, iterations = problem.solve()
         print 'Variant Solution %s: %s'%(i, solution)
 
 
-
+# problem = VariantNDimensionalRozenbrockDifferentialEvolution(n=6)
 # problem = EasomDifferentialEvolution()
-# problem = PolynomialDifferentialEvolution([1,-10,21,40,-100],[-10,10])
-# print '\nSolution:\n%s\n\nTotal iterations: %s'%(solution, iterations)
+problem = PolynomialDifferentialEvolution([1,-10,21,40,-100],[-10,10], False)
+problem.verbosity = 2
+solution, iterations = problem.solve()
+print '\nSolution:\n%s\n\nTotal iterations: %s'%(solution, iterations)
 
-test()
+# test(12)
