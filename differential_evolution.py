@@ -29,7 +29,7 @@ class DifferentialEvolution(object):
         # Selection of base vector scheme
         self.base_vector_selection_scheme = self.random_base_vector_selection
         # Select algorithm used for mutation
-        self. mutation_scheme = self.de_rand_1
+        self.mutation_scheme = self.de_best_1
         # Mutation scaling factor. Recommended 0.5 < f < 1.2
         self.f = 0.85
         # Crossover factor (see def crossover)
@@ -185,7 +185,7 @@ class DifferentialEvolution(object):
         Variation on classic DE, using the best-so-far vector as v0.
         r0 is allowed as an argument for consistency, but is not used.
         '''
-        r_best = self.get_leader_index()
+        r_best = self.get_best_vector_index()
         r1, r2 = self._n_m_e_r_i(2, self.population_size, not_equal_to=[i, r_best])
         v0, v1, v2 = self.population[r_best], self.population[r1], self.population[r2]
         return self.basic_mutation(v0, v1, v2, f)
@@ -194,8 +194,8 @@ class DifferentialEvolution(object):
         '''
         Hybrid of de/rand/1 and de/best/1. r0 is again ignored.
         '''
-        r_best = self.get_leader_index()
-        vi, v_best = self.population[i], self.population[v_best]
+        r_best = self.get_best_vector_index()
+        vi, v_best = self.population[i], self.population[r_best]
         current_to_best = self.basic_mutation(vi, v_best, vi, f)
         r1, r2 = self._n_m_e_r_i(2, self.population_size, not_equal_to=[i, r_best])
         v1, v2 = self.population[r1], self.population[r2]
@@ -211,11 +211,11 @@ class DifferentialEvolution(object):
         v3, v4 = self.population[r3], self.population[r4]
         return self.basic_mutation(mutant, v3, v4, f)
 
-    def de_best_2(self, i, f):
+    def de_best_2(self, i, f, r0):
         '''
         Like de/best/1, but adds two random scaled vectors.
         '''
-        r_best = self.get_leader_index()
+        r_best = self.get_best_vector_index()
         r1, r2, r3, r4 = self._n_m_e_r_i(4, self.population_size, not_equal_to=[i, r_best])
         v0, v1, v2 = self.population[r_best], self.population[r1], self.population[r2]
         mutant = self.basic_mutation(v0, v1, v2, f)

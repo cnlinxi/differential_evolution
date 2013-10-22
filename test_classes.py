@@ -98,10 +98,14 @@ def test(n):
         print 'Variant Solution %s: %s'%(i, solution)
 
 
-problem = NDimensionalRozenbrockDifferentialEvolution(n=6)
+problem = NDimensionalRozenbrockDifferentialEvolution(n=10)
 # problem = EasomDifferentialEvolution()
 # problem = PolynomialDifferentialEvolution([1,-10,21,40,-100],[-10,10], False)
 problem.verbosity = 1
+problem.c = 0.85
+problem.f = 0.8
+#problem.mutation_scheme = problem.de_rand_2
+#problem.base_vector_selection_scheme = problem.permuted_base_vector_selection
 solution, iterations = problem.solve()
 print '\nSolution:\n%s\n\nTotal iterations: %s'%(solution, iterations)
 
