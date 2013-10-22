@@ -2,110 +2,34 @@
 # Also use time information for logging
 import numpy, datetime
 
-class DEMutatorsMixin(object):
-    '''
-    Functions used in self-adaptive differential evolution to mutate three
-    or more vectors into a trial vector.
-    Under the self-adaptive scheme, the chance of each of these functions
-    being used is governed by a variable probability distribution.
-
-    Note this is a mixin - it requires some additional functions from the
-    DifferentialEvolution class to work.
-
-    Each of the mutator functions take an argument 'i', which is the current
-    index in the trial population.
-    '''
-    def _n_m_e_r_i(self, n, maximum, minimum=0, not_equal_to=[]):
-        '''
-        Helper function to return N Mutually Exclusive Random Integers
-        in the range [minimum, maximum). Optionally takes a 'not_equal_to'
-        argument; a list of integers which will be excluded from the set.
-        '''
-        selected = set()
-        while len(selected) < n:
-            rand = numpy.random.randint(minimum, maximum)
-            # No need to check if rand in selected as selected is a set.
-            if rand not in not_equal_to:
-                selected.add(rand)
-        return tuple(selected)
-
-    def absolute_bounds(self, mutant):
-        '''
-        Force a mutant vector to lie within the given boundaries.
-        '''
-        mutant = numpy.minimum(self.max_vector, mutant)
-        mutant = numpy.maximum(self.min_vector, mutant)
-        return mutant
-
-    def get_leader_index(self):
-        '''
-        Get the index of the best-performing member of the population
-        '''
-        return min(xrange(len(self.costs)), key=self.costs.__getitem__)
-
-    def basic_mutation(self, r0, r1, r2):
-        '''
-        Mutation helper function, called by all mutation types.
-        Returns v2 + [f * (v1 - v0)], where v0, v1 and v2 are vectors in the
-        population with indices r0, r1 and r2.
-        '''
-        v0, v1, v2 = self.population[r0], self.population[r1], self.population[r2]
-        mutant = v2 + (self.f * (v1 - v0))
-        return mutant
-
-    def de_rand_1(self, i):
-        '''
-        'Classic' DE mutation - combine three random vectors.
-        '''
-        r0, r1, r2 = self._n_m_e_r_i(3, self.population_size, not_equal_to=[i])
-        return self.basic_mutation(r0, r1, r2)
-
-    def de_best_1(self, i):
-        '''
-        Variation on classic DE, using the best-so-far vector as v0
-        '''
-        r0 = self.get_leader_index()
-        r1, r2 = self._n_m_e_r_i(2, self.population_size, not_equal_to=[r0,i])
-        return self.basic_mutation(r0, r1, r2)
-
-    def de_current_to_best_1(self, i):
-        '''
-        Hybrid of de/rand/1 and de/best/1.
-        '''
-        r1, r2 = self._n_m_e_r_i(2, self.population_size, not_equal_to=[i])
-        mutant = self.basic_mutation(i, r1, r2)
-        vi, vbest = self.population[i], self.population[self.get_leader_index()]
-        mutant += self.f * (vbest - vi)
-        return mutant
-
-    def de_rand_2(self, i):
-        '''
-        Like de/rand/1, but adds two random scaled vectors.
-        '''
-        r0, r1, r2, r3, r4 = self._n_m_e_r_i(5, self.population_size, not_equal_to=[i])
-        mutant = self.basic_mutation(i, r1, r2)
-
-    def de_best_2(self, i):
-        '''
-        Like de/best/1, but adds two random scaled vectors.
-        '''
-
-
-
-
-class DifferentialEvolution(DEMutatorsMixin):
+class DifferentialEvolution(object):
     '''
     A class-based approach to the Differential Evolution (DE) problem.
     This class should be subclassed for use in specific problems.
 
     DE is an optimisation algorithm that minimises an n-dimensional
     cost function using one or more mutation functions.
+
+    This is a basic version, as set out by Storn and Price in
+    'Differential Evolution - A Practical Approach to Global Optimisation'.
+
+    There are three tiers of functions:
+    - Top-level functions control the program flow and manipulate object variables.
+    - Second-level functions are the tools drawn upon to adjust the 'flavour' of
+      top-level functions. e.g. de_rand_1 to mutation. They do not manipulate
+      object variables.
+    - Third-level functions are basic helper functions. Their names are prefixed
+      with a single underscore.
     '''
     def __init__(self):
         '''
         Specify the problem default parameters as attributes here.
         Any of these attributes can be overriden.
         '''
+        # Selection of base vector scheme
+        self.base_vector_selection_scheme = self.random_base_vector_selection
+        # Select algorithm used for mutation
+        self. mutation_scheme = self.de_rand_1
         # Mutation scaling factor. Recommended 0.5 < f < 1.2
         self.f = 0.85
         # Crossover factor (see def crossover)
@@ -151,17 +75,12 @@ class DifferentialEvolution(DEMutatorsMixin):
         '''
         raise NotImplementedError
 
-    def initialise_population(self):
+    # The following functions concern population initialisation.
+    def generate_random_population(self, mean, range):
         '''
-        Creates n vectors of random numbers within the ranges specified by
-        min_vector and max_vector.
-        The size of the vectors will be equal to that of min_vector and
-        max_vector (which must be of equal size to each other).
+        This function creates a randomly-distributed initial population.
+        Halton or Gaussian distributions could also be used.
         '''
-        # Calculate the mean and range (vectors) of min_vector and max_vector.
-        # These values are used to scale the random population.
-        mean = numpy.mean(numpy.column_stack((self.min_vector, self.max_vector)), axis=1)
-        range = self.max_vector - self.min_vector
         population = [] # A blank container to hold the population before returning.
         for i in xrange(self.population_size):
             # A random vector in the range -0.5 - 0.5
@@ -170,23 +89,154 @@ class DifferentialEvolution(DEMutatorsMixin):
             vector *= range
             vector += mean
             # Add the fully-constructed vector to the population
-            population.append(numpy.array(vector))
+            population.append(vector)
         return population
 
-    def mutation(self, v1, v2, v3):
+    def initialise_population(self):
         '''
-        Creates a vector mutation by calculating v3 + [f * (v2 - v1)],
-        in accordance with Price and Storn's 'Differential Evolution' approach.
-        f, a real number, is known as the scaling factor.
-        If absoulte bounds are set, make sure that the vector lies within the
-        allowed boundaries.
+        Creates n vectors within the ranges specified by
+        min_vector and max_vector.
+        The size of the vectors will be equal to that of min_vector and
+        max_vector (which must be of equal size to each other).
         '''
-        mutant = v3 + (self.f * (v2 - v1))
-        if self.absolute_bounds:
-            mutant = numpy.minimum(self.max_vector, mutant)
-            mutant = numpy.maximum(self.min_vector, mutant)
+        # Calculate the mean and range (vectors) of min_vector and max_vector.
+        # These values are used to scale the population.
+        mean = numpy.mean(numpy.column_stack((self.min_vector, self.max_vector)), axis=1)
+        range = self.max_vector - self.min_vector
+        return self.generate_random_population(mean, range)
+
+    # The following second-level functions are used during mutation to
+    # select the base vector, v0.
+    def random_base_vector_selection(self):
+        '''
+        Base vectors are selected with a random and independent probability.
+        The only condition is that randoms[i] != i
+        '''
+        randoms = [0] # Arbitrary initialisation to imitate a do-while loop
+        while any([randoms[i] == i for i in randoms]):
+            randoms = numpy.random.randint(self.population_size, size=self.population_size)
+        return randoms
+
+    def permuted_base_vector_selection(self):
+        '''
+        Base vectors are selected randomly but with dependent probability.
+        Each vector is used as v0 only once per generation.
+        '''
+        randoms = numpy.random.permutation(self.population_size)
+        while any([randoms[i] == i for i in randoms]):
+            numpy.random.shuffle(randoms)
+        return randoms
+
+    def random_offset_base_vector_selection(self):
+        '''
+        Base vectors are selected at a random but unchanging offset from the
+        parent vector.
+        '''
+        random_offset = numpy.random.randint(self.population_size)
+        return [(i + random_offset) % self.population_size for i in xrange(self.population_size)]
+
+    # The following functions concern mutation operations.
+    # They are self-adaptive ready, but there is no self-adaptive logic here.
+    def _n_m_e_r_i(self, n, maximum, minimum=0, not_equal_to=[]):
+        '''
+        Helper function to return N Mutually Exclusive Random Integers (nmeri)
+        in the range [minimum, maximum). Optionally takes a 'not_equal_to'
+        argument; a list of integers which will be excluded from the set.
+        '''
+        selected = set()
+        while len(selected) < n:
+            rand = numpy.random.randint(minimum, maximum)
+            # No need to check if rand in selected as selected is a set.
+            if rand not in not_equal_to:
+                selected.add(rand)
+        return tuple(selected)
+
+    def enforce_absolute_bounds(self, mutant):
+        '''
+        Force a mutant vector to lie within the given boundaries.
+        '''
+        mutant = numpy.minimum(self.max_vector, mutant)
+        mutant = numpy.maximum(self.min_vector, mutant)
         return mutant
 
+    def get_best_vector_index(self):
+        '''
+        Get the index of the best-performing member of the population
+        '''
+        return min(xrange(len(self.costs)), key=self.costs.__getitem__)
+
+    def basic_mutation(self, v0, v1, v2, f):
+        '''
+        Mutation helper function, called by all mutation types.
+        Returns v0 + [f * (v1 - v2)], where v0, v1 and v2 are vectors
+        '''
+        return v0 + (f * (v1 - v2))
+
+    def de_rand_1(self, i, f, r0):
+        '''
+        'Classic' DE mutation - combine three random vectors.
+        '''
+        r1, r2 = self._n_m_e_r_i(2, self.population_size, not_equal_to=[i, r0])
+        v0, v1, v2 = self.population[r0], self.population[r1], self.population[r2]
+        return self.basic_mutation(v0, v1, v2, f)
+
+    def de_best_1(self, i, f, r0):
+        '''
+        Variation on classic DE, using the best-so-far vector as v0.
+        r0 is allowed as an argument for consistency, but is not used.
+        '''
+        r_best = self.get_leader_index()
+        r1, r2 = self._n_m_e_r_i(2, self.population_size, not_equal_to=[i, r_best])
+        v0, v1, v2 = self.population[r_best], self.population[r1], self.population[r2]
+        return self.basic_mutation(v0, v1, v2, f)
+
+    def de_current_to_best_1(self, i, f, r0):
+        '''
+        Hybrid of de/rand/1 and de/best/1. r0 is again ignored.
+        '''
+        r_best = self.get_leader_index()
+        vi, v_best = self.population[i], self.population[v_best]
+        current_to_best = self.basic_mutation(vi, v_best, vi, f)
+        r1, r2 = self._n_m_e_r_i(2, self.population_size, not_equal_to=[i, r_best])
+        v1, v2 = self.population[r1], self.population[r2]
+        return self.basic_mutation(current_to_best, v1, v2, f)
+
+    def de_rand_2(self, i, f, r0):
+        '''
+        Like de/rand/1, but adds two random scaled vectors.
+        '''
+        r1, r2, r3, r4 = self._n_m_e_r_i(4, self.population_size, not_equal_to=[i, r0])
+        v0, v1, v2 = self.population[r0], self.population[r1], self.population[r2]
+        mutant = self.basic_mutation(v0, v1, v2, f)
+        v3, v4 = self.population[r3], self.population[r4]
+        return self.basic_mutation(mutant, v3, v4, f)
+
+    def de_best_2(self, i, f):
+        '''
+        Like de/best/1, but adds two random scaled vectors.
+        '''
+        r_best = self.get_leader_index()
+        r1, r2, r3, r4 = self._n_m_e_r_i(4, self.population_size, not_equal_to=[i, r_best])
+        v0, v1, v2 = self.population[r_best], self.population[r1], self.population[r2]
+        mutant = self.basic_mutation(v0, v1, v2, f)
+        v3, v4 = self.population[r3], self.population[r4]
+        return self.basic_mutation(mutant, v3, v4, f)
+
+    def mutation(self):
+        '''
+        Mutate all vectors in the population.
+        Yields an iterator of mutants.
+
+        In normal DE, only a single scheme and a single f value are used.
+        '''
+        base_vector_indices = self.base_vector_selection_scheme()
+        for i, vi in enumerate(self.population):
+            mutant = self.mutation_scheme(i, self.f, base_vector_indices[i])
+            if self.absolute_bounds:
+                mutant = self.enforce_absolute_bounds(mutant)
+            yield mutant
+
+    # The following function performs the crossover operation.
     def crossover(self, v1, v2):
         '''
         Creates a trial vector by crossing v1 with v2 to create v3.
@@ -204,17 +254,7 @@ class DifferentialEvolution(DEMutatorsMixin):
                 v3.append(v2[i])
         return numpy.array(v3)
 
-    def crown_tournament_victor(self, challenger, population_index):
-        '''
-        Gets the vector and associated cost of whichever vector minimises the
-        cost function. The contest is between a 'challenger' vector and a
-        'parent' vector in the population with index = population_index.
-        '''
-        challenger_cost = self.cost(challenger)
-        if challenger_cost < self.costs[population_index]:
-            self.population[population_index] = challenger
-            self.costs[population_index] = challenger_cost
-
+    # Called at the end of each generation.
     def check_for_convergence(self):
         '''
         Returns True if the standard deviation of the population is below the
@@ -226,6 +266,8 @@ class DifferentialEvolution(DEMutatorsMixin):
         else:
             return False
 
+    # The following functions log progress. Whether one or all of them is called
+    # depends on the verbosity setting.
     def basic_logging(self):
         '''
         This basic logging information is always shown unless verbosity is
@@ -265,23 +307,31 @@ class DifferentialEvolution(DEMutatorsMixin):
         print '%s%s%s%s'%(str(iteration).ljust(cs/2), str(mean).ljust(cs),
             str(std).ljust(cs), str(best).ljust(cs/2))
 
+    # This is the engine of the algorithm - the solve function calls
+    # de and tournament to optimise the given cost function.
     def de(self):
         '''
-        Two generation, unthreaded version
+        This function creates a trial population from an existing population
+        using mutation and crossover operations.
+        It returns a trial population as an iterator.
         '''
-        # Loop over the vectors in the population
-        trial_population = []
-        for i, parent in enumerate(self.population):
-            # Select three random vectors from the population (not i)
-            r0, r1, r2 = self._n_mutually_exclusive_random_integers(
-                3, self.population_size, not_equal_to = i)
-            # Go through the mutation/crossover process
-            mutant = self.mutation(r0, r1, r2)
-            trial = self.crossover(parent, mutant)
-            trial_population.append(trial)
+        mutants = self.mutation()
+        trial_population = (self.crossover(self.population[i], mutant)
+            for i, mutant in enumerate(mutants))
+        return trial_population
+
+    def tournament(self, trial_population):
+        '''
+        This function calculates the cost function for each trial vector.
+        If the trial vector is more successful, it replaces its parent in
+        the population.
+        '''
         for i, trial in enumerate(trial_population):
             # Select the winner and update the population/costs.
-            self.crown_tournament_victor(trial, i)
+            trial_cost = self.cost(trial)
+            if trial_cost < self.costs[i]:
+                self.population[i] = trial
+                self.costs[i] = trial_cost
 
     def solve(self):
         '''
@@ -295,43 +345,20 @@ class DifferentialEvolution(DEMutatorsMixin):
             self.basic_logging()
         # Start iterating.
         for i in xrange(self.max_iterations):
-            # Evolve the next generation
-            self.de()
             # If logging, show output
             if self.verbosity > 1:
                 self.log_solution(i+1)
+            # Evolve the next generation
+            trial_population = self.de()
+            # Tournament-select the next generation
+            self.tournament(trial_population)
             # Check for solution convergence
             convergence = self.check_for_convergence()
             if convergence:
                 # Return the solution that minimises the cost function
-                victor_index = min(xrange(len(self.costs)),
-                    key=self.costs.__getitem__)
+                victor_index = self.get_best_vector_index()
                 victor = numpy.round(self.population[victor_index],
                     self.decimal_precision)
                 return victor, i+1
         # If we get to here, we haven't achieved convergence. Raise an error.
         raise Exception('The solution did not converge')
-
-class SingleGenerationMixin(object):
-    '''
-    This is the memory-saving DE variant described in Section 5.2.4 of Price
-    and Storn's 'Differential Evolution'. There is only a single population
-    and there is no clear distinction between generations.
-    '''
-    def de(self):
-        '''
-        Single generation, memory saving version
-        '''
-        # Loop over the vectors in the population
-        for j in xrange(self.population_size):
-            # Select three random vectors from the population (not j)
-            selected = []
-            while len(selected) < 3:
-                randint = numpy.random.randint(self.population_size)
-                if randint != j:
-                    selected.append(self.population[randint])
-            # Go through the mutation/crossover process
-            mutant = self.mutation(*selected)
-            trial = self.crossover(self.population[j], mutant)
-            # Select the winner and update the population/costs.
-            self.crown_tournament_victor(trial, j)
