@@ -2,6 +2,12 @@
 # Also use time information for logging
 import numpy, datetime
 
+class NotConvergedException(Exception):
+    '''
+    Exception raised when a solution is not found
+    '''
+    pass
+
 class DifferentialEvolution(object):
     '''
     A class-based approach to the Differential Evolution (DE) problem.
@@ -26,36 +32,57 @@ class DifferentialEvolution(object):
         Specify the problem default parameters as attributes here.
         Any of these attributes can be overriden.
         '''
+        # Start by listing our (discrete) choices
+        self.mutators = {
+            'de/rand/1/bin': self.de_rand_1,
+            'de/best/1/bin': self.de_best_1,
+            'de/current_to_best/1/bin': self.de_current_to_best_1,
+            'de/rand/2/bin': self.de_rand_2,
+            'de/best/2/bin': self.de_best_2,
+        }
+        self.base_vector_selectors = {
+            'random': self.random_base_vector_selection,
+            'permuted': self.permuted_base_vector_selection,
+            'offset': self.random_offset_base_vector_selection,
+        }
+        self.convergence_functions = {
+            'std': self.std_convergence,
+            'vtr': self.vtr_convergence,
+        }
         # Selection of base vector scheme
-        self.base_vector_selection_scheme = self.random_base_vector_selection
+        self.base_vector_selection_scheme = 'random'
         # Select algorithm used for mutation
-        self.mutation_scheme = self.de_best_1
+        self.mutation_scheme = 'de/rand/1/bin'
+        # Select convergence function
+        self.convergence_function = 'std'
         # Mutation scaling factor. Recommended 0.5 < f < 1.2
         self.f = 0.85
         # Crossover factor (see def crossover)
         self.c = 0.85
         # Number of iterations before the program terminates regardless
         # of convergence
-        self.max_iterations = 10**4
+        self.max_iterations = 2000
         # Number of decimal places to which solutions are given.
         self.decimal_precision = 3
         # Maximum standard deviation of the population for the solution to be
-        # considered converged
+        # considered converged. Only used if convergence_function = std_convergence
         self.convergence_std = 10**(-1*(self.decimal_precision + 1))
+        # Value to reach. Only used if convergence_function = vtr_convergence
+        self.value_to_reach = 0
+        # Are the boundaries of the problem absolute, i.e. are mutations outside
+        # the bounding vectors banned?
+        self.absolute_bounds = False
         # Get the min and max vectors
         self.min_vector, self.max_vector = self.get_bounding_vectors()
         assert len(self.min_vector) == len(self.max_vector)
         # Having checked min_vector and max_vector are the same length, arbitrarily
         # take min_vector to establish the number of dimensions in the problem.
         self.dimensionality = len(self.min_vector)
-        # Are the boundaries of the problem absolute, i.e. are mutations outside
-        # the bounding vectors banned?
-        self.absolute_bounds = False
         # Default value for population size is 5 times the
         # problem dimensionality (2D = 10, 3D = 15, etc.).
         # I found a power law to be slightly
         # more reliable at low dim. and faster at high dim.
-        self.population_size = int(12 * (self.dimensionality) ** 0.4)
+        self.population_size = int(10 * (self.dimensionality) ** 0.5)
         # Select logging amount. 0=silent, 1=basic, 2=verbose.
         self.verbosity = 2
 
@@ -254,17 +281,23 @@ class DifferentialEvolution(object):
                 v3.append(v2[i])
         return numpy.array(v3)
 
-    # Called at the end of each generation.
-    def check_for_convergence(self):
+    # One of these functions is called at the end of each generation. The
+    # second-tier convergence functions given here are selectable termination
+    # criteria.
+    def std_convergence(self):
         '''
         Returns True if the standard deviation of the population is below the
         specified value in all dimensions.
         '''
         std = numpy.std(numpy.column_stack(self.population), axis=1)
-        if max(std) < self.convergence_std:
-            return True
-        else:
-            return False
+        return max(std) < self.convergence_std
+
+    def vtr_convergence(self):
+        '''
+        Returns True when the lowest function cost dips below a given value.
+        (a Value To Reach)
+        '''
+        return min(self.costs) < self.value_to_reach
 
     # The following functions log progress. Whether one or all of them is called
     # depends on the verbosity setting.
@@ -329,6 +362,7 @@ class DifferentialEvolution(object):
         for i, trial in enumerate(trial_population):
             # Select the winner and update the population/costs.
             trial_cost = self.cost(trial)
+            self.function_evaluations += 1
             if trial_cost < self.costs[i]:
                 self.population[i] = trial
                 self.costs[i] = trial_cost
@@ -338,8 +372,19 @@ class DifferentialEvolution(object):
         This is the main function which initiates the solution process
         and returns a final answer.
         '''
+        # Get functions corresponding to strings by using them as keys in lookup
+        if isinstance(self.base_vector_selection_scheme, basestring):
+            self.base_vector_selection_scheme = \
+                self.base_vector_selectors.get(self.base_vector_selection_scheme)
+        if isinstance(self.mutation_scheme, basestring):
+            self.mutation_scheme = self.mutators.get(self.mutation_scheme)
+        if isinstance(self.convergence_function, basestring):
+            self.convergence_function = \
+                self.convergence_functions.get(self.convergence_function)
+        # Initialise the solver
         self.population = self.initialise_population()
         self.costs = [self.cost(vector) for vector in self.population]
+        self.function_evaluations = self.population_size
         # Initialise the logging process
         if self.verbosity != 0:
             self.basic_logging()
@@ -353,12 +398,12 @@ class DifferentialEvolution(object):
             # Tournament-select the next generation
             self.tournament(trial_population)
             # Check for solution convergence
-            convergence = self.check_for_convergence()
+            convergence = self.convergence_function()
             if convergence:
                 # Return the solution that minimises the cost function
                 victor_index = self.get_best_vector_index()
                 victor = numpy.round(self.population[victor_index],
                     self.decimal_precision)
-                return victor, i+1
+                return victor, i+1, self.function_evaluations
         # If we get to here, we haven't achieved convergence. Raise an error.
-        raise Exception('The solution did not converge')
+        raise NotConvergedException('The solution did not converge')
