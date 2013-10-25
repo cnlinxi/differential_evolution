@@ -86,11 +86,11 @@ def tests():
             'neumaier': test_functions.NeumaierDifferentialEvolution(d=d),
         }
         multimodal_problems = {
-            #'ackley': test_functions.AckleyDifferentialEvolution(d=d),
-            #'griewangk': test_functions.GriewangkDifferentialEvolution(d=d),
-            #'rastrigin': test_functions.RastriginDifferentialEvolution(d=d),
-            #'salomon': test_functions.SalomonDifferentialEvolution(d=d),
-            #'whitley': test_functions.WhitleyDifferentialEvolution(d=d),
+            'ackley': test_functions.AckleyDifferentialEvolution(d=d),
+            'griewangk': test_functions.GriewangkDifferentialEvolution(d=d),
+            'rastrigin': test_functions.RastriginDifferentialEvolution(d=d),
+            'salomon': test_functions.SalomonDifferentialEvolution(d=d),
+            'whitley': test_functions.WhitleyDifferentialEvolution(d=d),
             #'storn': test_functions.StornDifferentialEvolution(d=d),
             #'lennard-jones': test_functions.LennardJonesDifferentialEvolution(d=d),
             #'hilbert': test_functions.HilbertDifferentialEvolution(d=d),
@@ -100,9 +100,9 @@ def tests():
             #'katsuura': test_functions.KatsuuraDifferentialEvolution(d=d),
         }
         bound_problems = {
-            #'schwefel': test_functions.SchwefelDifferentialEvolution(d=d)
+            'schwefel': test_functions.SchwefelDifferentialEvolution(d=d)
             #'michalewicz': test_functions.MichalewiczDifferentialEvolution(d=d)
-            #'rana': test_functions.RanaDifferentialEvolution(d=d)
+            'rana': test_functions.RanaDifferentialEvolution(d=d)
         }
         all_problems = dict(unimodal_problems.items() +
             multimodal_problems.items() + bound_problems.items())
