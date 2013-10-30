@@ -23,7 +23,7 @@ class TestDifferentialEvolution(DifferentialEvolution):
         self.population_size = int(20 * (self.dimensionality) ** 0.5)
         self.f = 0.8
         self.c = 0.8
-        self.max_iterations = 1000
+        self.max_iterations = 800
 
 
 def initialise_worksheet(ws, var_name, var_list):
@@ -53,16 +53,16 @@ def initialise_worksheet(ws, var_name, var_list):
 
 
 def tests():
-    dimensions = [2]
+    dimensions = [2, 5]
     variables = {
-        #'population_size': [10, 30, 50, 100],
-        #'f': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2],
-        #'c': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+        'population_size': [10, 30, 50, 100],
+        'f': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2],
+        'c': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
         'mutation_scheme': ['de/rand/1/bin', 'de/best/1/bin',
             'de/current_to_best/1/bin', 'de/rand/2/bin', 'de/best/2/bin'],
         'base_vector_selection_scheme': ['random', 'permuted', 'offset']
     }
-    repeats = 3
+    repeats = 2
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
     wb_name = 'DE_Tests.xlsx'
@@ -100,8 +100,8 @@ def tests():
             #'katsuura': test_functions.KatsuuraDifferentialEvolution(d=d),
         }
         bound_problems = {
-            'schwefel': test_functions.SchwefelDifferentialEvolution(d=d)
-            #'michalewicz': test_functions.MichalewiczDifferentialEvolution(d=d)
+            'schwefel': test_functions.SchwefelDifferentialEvolution(d=d),
+            #'michalewicz': test_functions.MichalewiczDifferentialEvolution(d=d),
             'rana': test_functions.RanaDifferentialEvolution(d=d)
         }
         all_problems = dict(unimodal_problems.items() +

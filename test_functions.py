@@ -256,8 +256,8 @@ class RanaDifferentialEvolution(TestDifferentialEvolution):
         value = 0
         for i in xrange(self.dimensionality):
             j = (i+1) % self.dimensionality
-            a = sqrt(numpy.abs(x[j] + 1 - x[i]))
-            b = sqrt(numpy.abs(x[j] + 1 + x[i]))
+            a = numpy.sqrt(numpy.abs(x[j] + 1 - x[i]))
+            b = numpy.sqrt(numpy.abs(x[j] + 1 + x[i]))
             value += (x[i] * numpy.sin(a) * numpy.cos(b) +
                     (x[j] + 1) * numpy.cos(a) * numpy.sin(b))
         return value / float(self.dimensionality)
