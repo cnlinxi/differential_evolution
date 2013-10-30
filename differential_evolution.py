@@ -18,14 +18,6 @@ class DifferentialEvolution(object):
 
     This is a basic version, as set out by Storn and Price in
     'Differential Evolution - A Practical Approach to Global Optimisation'.
-
-    There are three tiers of functions:
-    - Top-level functions control the program flow and manipulate object variables.
-    - Second-level functions are the tools drawn upon to adjust the 'flavour' of
-      top-level functions. e.g. de_rand_1 to mutation. They do not manipulate
-      object variables.
-    - Third-level functions are basic helper functions. Their names are prefixed
-      with a single underscore.
     '''
     def __init__(self):
         '''
@@ -39,6 +31,7 @@ class DifferentialEvolution(object):
             'de/current_to_best/1/bin': self.de_current_to_best_1,
             'de/rand/2/bin': self.de_rand_2,
             'de/best/2/bin': self.de_best_2,
+            'de/rand_then_best/1/bin': self.de_rand_then_best_1,
         }
         self.base_vector_selectors = {
             'random': self.random_base_vector_selection,
@@ -49,6 +42,11 @@ class DifferentialEvolution(object):
             'std': self.std_convergence,
             'vtr': self.vtr_convergence,
         }
+        self.f_randomisers = {
+            'static': lambda f: self.f,  # Just return f when this is called.
+            'dither': self.dither,
+            'jitter': self.jitter,
+        }
         # Selection of base vector scheme
         self.base_vector_selection_scheme = 'random'
         # Select algorithm used for mutation
@@ -57,11 +55,13 @@ class DifferentialEvolution(object):
         self.convergence_function = 'std'
         # Mutation scaling factor. Recommended 0.5 < f < 1.2
         self.f = 0.85
+        # Select f distribution
+        self.f_randomisation = 'static'
         # Crossover factor (see def crossover)
         self.c = 0.85
         # Number of iterations before the program terminates regardless
         # of convergence
-        self.max_iterations = 2000
+        self.max_generations = 2000
         # Number of decimal places to which solutions are given.
         self.decimal_precision = 3
         # Maximum standard deviation of the population for the solution to be
@@ -85,6 +85,19 @@ class DifferentialEvolution(object):
         self.population_size = int(10 * (self.dimensionality) ** 0.5)
         # Select logging amount. 0=silent, 1=basic, 2=verbose.
         self.verbosity = 2
+
+    def _string_to_function_if_string(self, attr, dictionary):
+        '''
+        Utility to convert a string to a function by lookup in a
+        dictionary, or leave the function alone if it is already a function,
+        then set self.attr equal to that function.
+        '''
+        func_or_string = getattr(self, attr)
+        if isinstance(func_or_string, basestring):
+            func = dictionary[func_or_string]
+        else:
+            func = func_or_string
+        setattr(self, attr, func)
 
     # The following two functions must be implemented in the subclass.
     def cost(self, vector):
@@ -132,7 +145,7 @@ class DifferentialEvolution(object):
         range = self.max_vector - self.min_vector
         return self.generate_random_population(mean, range)
 
-    # The following second-level functions are used during mutation to
+    # The following functions are used during mutation to
     # select the base vector, v0.
     def random_base_vector_selection(self):
         '''
@@ -140,7 +153,7 @@ class DifferentialEvolution(object):
         The only condition is that randoms[i] != i
         '''
         randoms = [0] # Arbitrary initialisation to imitate a do-while loop
-        while any([randoms[i] == i for i in randoms]):
+        while any(randoms[i] == i for i in randoms):
             randoms = numpy.random.randint(self.population_size, size=self.population_size)
         return randoms
 
@@ -150,7 +163,7 @@ class DifferentialEvolution(object):
         Each vector is used as v0 only once per generation.
         '''
         randoms = numpy.random.permutation(self.population_size)
-        while any([randoms[i] == i for i in randoms]):
+        while any(randoms[i] == i for i in randoms):
             numpy.random.shuffle(randoms)
         return randoms
 
@@ -186,6 +199,20 @@ class DifferentialEvolution(object):
         mutant = numpy.maximum(self.min_vector, mutant)
         return mutant
 
+    def dither(self, f_mean, sigma=0.1):
+        '''
+        Returns a scalar f based on a normal distribution about f_mean
+        with a standard deviation of sigma.
+        '''
+        return numpy.random.normal(f_mean, sigma)
+
+    def jitter(self, f_mean, sigma=0.1):
+        '''
+        Returns a vector f based on a normal distribution about f_mean
+        with a standard deviation of sigma.
+        '''
+        return numpy.random.normal(f_mean, sigma, self.dimensionality)
+
     def get_best_vector_index(self):
         '''
         Get the index of the best-performing member of the population
@@ -195,8 +222,10 @@ class DifferentialEvolution(object):
     def basic_mutation(self, v0, v1, v2, f):
         '''
         Mutation helper function, called by all mutation types.
-        Returns v0 + [f * (v1 - v2)], where v0, v1 and v2 are vectors
+        Returns v0 + [f * (v1 - v2)], where v0, v1 and v2 are vectors.
+        f may be static, dithered or jittered.
         '''
+        f = self.f_randomisation(f)
         return v0 + (f * (v1 - v2))
 
     def de_rand_1(self, i, f, r0):
@@ -231,30 +260,40 @@ class DifferentialEvolution(object):
     def de_rand_2(self, i, f, r0):
         '''
         Like de/rand/1, but adds two random scaled vectors.
+        Modified from Qin and Suganthan by using f/2.
         '''
         r1, r2, r3, r4 = self._n_m_e_r_i(4, self.population_size, not_equal_to=[i, r0])
         v0, v1, v2 = self.population[r0], self.population[r1], self.population[r2]
-        mutant = self.basic_mutation(v0, v1, v2, f)
+        mutant = self.basic_mutation(v0, v1, v2, f*0.5)
         v3, v4 = self.population[r3], self.population[r4]
-        return self.basic_mutation(mutant, v3, v4, f)
+        return self.basic_mutation(mutant, v3, v4, f*0.5)
 
     def de_best_2(self, i, f, r0):
         '''
         Like de/best/1, but adds two random scaled vectors.
+        Modified from Qin and Suganthan by using f/2.
         '''
         r_best = self.get_best_vector_index()
         r1, r2, r3, r4 = self._n_m_e_r_i(4, self.population_size, not_equal_to=[i, r_best])
         v0, v1, v2 = self.population[r_best], self.population[r1], self.population[r2]
-        mutant = self.basic_mutation(v0, v1, v2, f)
+        mutant = self.basic_mutation(v0, v1, v2, f*0.5)
         v3, v4 = self.population[r3], self.population[r4]
-        return self.basic_mutation(mutant, v3, v4, f)
+        return self.basic_mutation(mutant, v3, v4, f*0.5)
+
+    def de_rand_then_best_1(self, i, f, r0):
+        '''
+        If the generation is odd, use de_rand_1.
+        If the generation is even, use de_best_1.
+        '''
+        if self.generation % 2:
+            return self.de_rand_1(i, f, r0)
+        else:
+            return self.de_best_1(i, f, r0)
 
     def mutation(self):
         '''
         Mutate all vectors in the population.
         Yields an iterator of mutants.
-
-        In normal DE, only a single scheme and a single f value are used.
         '''
         base_vector_indices = self.base_vector_selection_scheme()
         for i, vi in enumerate(self.population):
@@ -282,8 +321,7 @@ class DifferentialEvolution(object):
         return numpy.array(v3)
 
     # One of these functions is called at the end of each generation. The
-    # second-tier convergence functions given here are selectable termination
-    # criteria.
+    # convergence functions given here are selectable termination criteria.
     def std_convergence(self):
         '''
         Returns True if the standard deviation of the population is below the
@@ -373,14 +411,14 @@ class DifferentialEvolution(object):
         and returns a final answer.
         '''
         # Get functions corresponding to strings by using them as keys in lookup
-        if isinstance(self.base_vector_selection_scheme, basestring):
-            self.base_vector_selection_scheme = \
-                self.base_vector_selectors.get(self.base_vector_selection_scheme)
-        if isinstance(self.mutation_scheme, basestring):
-            self.mutation_scheme = self.mutators.get(self.mutation_scheme)
-        if isinstance(self.convergence_function, basestring):
-            self.convergence_function = \
-                self.convergence_functions.get(self.convergence_function)
+        self._string_to_function_if_string(
+                'base_vector_selection_scheme', self.base_vector_selectors)
+        self._string_to_function_if_string(
+                'mutation_scheme', self.mutators)
+        self._string_to_function_if_string(
+                'convergence_function', self.convergence_functions)
+        self._string_to_function_if_string(
+                'f_randomisation', self.f_randomisers)
         # Initialise the solver
         self.population = self.initialise_population()
         self.costs = [self.cost(vector) for vector in self.population]
@@ -389,10 +427,11 @@ class DifferentialEvolution(object):
         if self.verbosity != 0:
             self.basic_logging()
         # Start iterating.
-        for i in xrange(self.max_iterations):
+        for i in xrange(self.max_generations):
+            self.generation = i+1
             # If logging, show output
             if self.verbosity > 1:
-                self.log_solution(i+1)
+                self.log_solution(self.generation)
             # Evolve the next generation
             trial_population = self.de()
             # Tournament-select the next generation
@@ -404,6 +443,78 @@ class DifferentialEvolution(object):
                 victor_index = self.get_best_vector_index()
                 victor = numpy.round(self.population[victor_index],
                     self.decimal_precision)
-                return victor, i+1, self.function_evaluations
+                return victor, self.generation, self.function_evaluations
         # If we get to here, we haven't achieved convergence. Raise an error.
         raise NotConvergedException('The solution did not converge')
+
+
+class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
+    '''
+    DE, modified such that there is no need to preselect f
+    '''
+    def __init__(self):
+        super(SelfAdaptiveDifferentialEvolution, self).__init__()
+        # Restrict our choices to /1/ mutators
+        self.mutators = {
+            'de/rand/1/bin': self.de_rand_1,
+            'de/best/1/bin': self.de_best_1,
+            'de/current_to_best/1/bin': self.de_current_to_best_1,
+            'de/rand_then_best/1/bin': self.de_rand_then_best_1,
+        }
+        # Must use dither, such that each vector has its own f value.
+        self.f_randomisation = self.dither
+
+    def basic_mutation(self, v0, v1, v2, f):
+        '''
+        Modify mutation to keep track of f
+        '''
+        f = self.f_randomisation(f)
+        return v0 + (f * (v1 - v2)), f
+
+    def mutation(self):
+        '''
+        As above
+        '''
+        if not self.generation % 20:
+            print numpy.mean(self.successes) - numpy.mean(self.failures)
+            #self.successes, self.failures = [], []
+        base_vector_indices = self.base_vector_selection_scheme()
+        for i, vi in enumerate(self.population):
+            mutant, f = self.mutation_scheme(i, self.f, base_vector_indices[i])
+            if self.absolute_bounds:
+                mutant = self.enforce_absolute_bounds(mutant)
+            yield mutant, f
+
+    def de(self):
+        '''
+        As above
+        '''
+        mutants = self.mutation()
+        trial_population = ((self.crossover(self.population[i], mutant), f)
+                for i, (mutant, f) in enumerate(mutants))
+        return trial_population
+
+    def tournament(self, trial_population):
+        '''
+        As above
+        '''
+        for i, (trial, f) in enumerate(trial_population):
+            # Select the winner and update the population/costs.
+            trial_cost = self.cost(trial)
+            self.function_evaluations += 1
+            if trial_cost < self.costs[i]:
+                self.population[i] = trial
+                self.costs[i] = trial_cost
+                self.successes.append(f)
+            else:
+                self.failures.append(f)
+
+    def solve(self):
+        '''
+        Print the f log as well.
+        '''
+        # Use lists to record downward motion.
+        self.successes, self.failures = [], []
+        victor, generation, function_evaluations = \
+            super(SelfAdaptiveDifferentialEvolution, self).solve()
+        return victor, generation, function_evaluations

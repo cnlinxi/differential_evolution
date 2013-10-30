@@ -1,5 +1,5 @@
 import numpy, openpyxl, string, test_functions
-from differential_evolution import DifferentialEvolution, NotConvergedException
+from differential_evolution import DifferentialEvolution, NotConvergedException, SelfAdaptiveDifferentialEvolution
 ALPHABET = string.uppercase
 
 '''
@@ -9,7 +9,7 @@ running them repeatedly on the test functions defined in test_functions.py.
 The results are exported to Microsoft Excel.
 '''
 
-class TestDifferentialEvolution(DifferentialEvolution):
+class TestDifferentialEvolution(SelfAdaptiveDifferentialEvolution):
     '''
     Modifications to the standard DE class to make it appropriate for tests.
     '''
@@ -19,11 +19,11 @@ class TestDifferentialEvolution(DifferentialEvolution):
         self.verbosity = 0
         self.convergence_function = 'vtr'
         self.mutation_scheme = 'de/rand/1/bin'
-        self.base_vector_selection_scheme = 'random'
-        self.population_size = int(20 * (self.dimensionality) ** 0.5)
-        self.f = 0.8
-        self.c = 0.8
-        self.max_iterations = 800
+        self.base_vector_selection_scheme = 'permuted'
+        self.population_size = int(5 * (self.dimensionality) ** 0.5)
+        self.f = 0.7
+        self.c = 0.9
+        self.max_generations = 1000
 
 
 def initialise_worksheet(ws, var_name, var_list):
@@ -53,16 +53,16 @@ def initialise_worksheet(ws, var_name, var_list):
 
 
 def tests():
-    dimensions = [2, 5]
+    dimensions = [2]
     variables = {
-        'population_size': [10, 30, 50, 100],
-        'f': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2],
-        'c': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-        'mutation_scheme': ['de/rand/1/bin', 'de/best/1/bin',
-            'de/current_to_best/1/bin', 'de/rand/2/bin', 'de/best/2/bin'],
-        'base_vector_selection_scheme': ['random', 'permuted', 'offset']
+        #'population_size': [10, 30, 50, 100],
+        'f': [0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.1],
+        #'c': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+        # 'mutation_scheme': ['de/rand/1/bin', 'de/best/1/bin', 'de/current_to_best/1/bin', 'de/rand/2/bin', 'de/best/2/bin', 'de/rand_then_best/1/bin'],
+        #'base_vector_selection_scheme': ['random', 'permuted', 'offset']
+        #'f_randomisation': ['static', 'dither', 'jitter']
     }
-    repeats = 2
+    repeats = 1
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
     wb_name = 'DE_Tests.xlsx'
@@ -79,8 +79,7 @@ def tests():
     for d in dimensions:
         unimodal_problems = {
             'sphere': test_functions.SphereDifferentialEvolution(d=d),
-            'hyper-ellipsoid':
-                test_functions.HyperEllipsoidDifferentialEvolution(d=d),
+            'hyper-ellipsoid': test_functions.HyperEllipsoidDifferentialEvolution(d=d),
             'rozenbrock': test_functions.RozenbrockDifferentialEvolution(d=d),
             'schwefel-ridge': test_functions.SchwefelDifferentialEvolution(d=d),
             'neumaier': test_functions.NeumaierDifferentialEvolution(d=d),
@@ -106,10 +105,10 @@ def tests():
         }
         all_problems = dict(unimodal_problems.items() +
             multimodal_problems.items() + bound_problems.items())
-        for problem_name, problem in all_problems.iteritems():
+        for problem_name, problem in sorted(all_problems.iteritems()):
             problem_descr = '%s in %s dimensions'%(problem_name, d)
             print 'Testing %s'%(problem_descr)
-            for var_name, var_list in variables.iteritems():
+            for var_name, var_list in sorted(variables.iteritems()):
                 results = [problem_name, d]
                 for attr in var_list:
                     setattr(problem, var_name, attr)
