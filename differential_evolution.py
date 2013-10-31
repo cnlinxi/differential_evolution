@@ -43,9 +43,13 @@ class DifferentialEvolution(object):
             'vtr': self.vtr_convergence,
         }
         self.f_randomisers = {
-            'static': lambda f: self.f,  # Just return f when this is called.
+            'static': lambda f: f,  # Just return f when this is called.
             'dither': self.dither,
             'jitter': self.jitter,
+        }
+        self.c_randomisers = {
+            'static': lambda c: c,  # Just return f when this is called.
+            'dither': self.dither,
         }
         # Selection of base vector scheme
         self.base_vector_selection_scheme = 'random'
@@ -57,8 +61,12 @@ class DifferentialEvolution(object):
         self.f = 0.85
         # Select f distribution
         self.f_randomisation = 'static'
+        # Should f decay over the course of the solution process?
+        self.f_decay = False
         # Crossover factor (see def crossover)
         self.c = 0.85
+        # Select c distribution
+        self.c_randomisation = 'static'
         # Number of iterations before the program terminates regardless
         # of convergence
         self.max_generations = 2000
@@ -199,19 +207,19 @@ class DifferentialEvolution(object):
         mutant = numpy.maximum(self.min_vector, mutant)
         return mutant
 
-    def dither(self, f_mean, sigma=0.1):
+    def dither(self, x, sigma=0.3):
         '''
-        Returns a scalar f based on a normal distribution about f_mean
+        Returns a scalar based on a normal distribution about x
         with a standard deviation of sigma.
         '''
-        return numpy.random.normal(f_mean, sigma)
+        return numpy.random.normal(x, sigma)
 
-    def jitter(self, f_mean, sigma=0.1):
+    def jitter(self, x, sigma=0.3):
         '''
-        Returns a vector f based on a normal distribution about f_mean
+        Returns a vector based on a normal distribution about x
         with a standard deviation of sigma.
         '''
-        return numpy.random.normal(f_mean, sigma, self.dimensionality)
+        return numpy.random.normal(x, sigma, self.dimensionality)
 
     def get_best_vector_index(self):
         '''
@@ -226,7 +234,8 @@ class DifferentialEvolution(object):
         f may be static, dithered or jittered.
         '''
         f = self.f_randomisation(f)
-        return v0 + (f * (v1 - v2))
+        metadata = {'f': f}
+        return v0 + (f * (v1 - v2)), metadata
 
     def de_rand_1(self, i, f, r0):
         '''
@@ -252,7 +261,7 @@ class DifferentialEvolution(object):
         '''
         r_best = self.get_best_vector_index()
         vi, v_best = self.population[i], self.population[r_best]
-        current_to_best = self.basic_mutation(vi, v_best, vi, f)
+        current_to_best = self.basic_mutation(vi, v_best, vi, f)[0]
         r1, r2 = self._n_m_e_r_i(2, self.population_size, not_equal_to=[i, r_best])
         v1, v2 = self.population[r1], self.population[r2]
         return self.basic_mutation(current_to_best, v1, v2, f)
@@ -264,7 +273,7 @@ class DifferentialEvolution(object):
         '''
         r1, r2, r3, r4 = self._n_m_e_r_i(4, self.population_size, not_equal_to=[i, r0])
         v0, v1, v2 = self.population[r0], self.population[r1], self.population[r2]
-        mutant = self.basic_mutation(v0, v1, v2, f*0.5)
+        mutant = self.basic_mutation(v0, v1, v2, f*0.5)[0]
         v3, v4 = self.population[r3], self.population[r4]
         return self.basic_mutation(mutant, v3, v4, f*0.5)
 
@@ -276,7 +285,7 @@ class DifferentialEvolution(object):
         r_best = self.get_best_vector_index()
         r1, r2, r3, r4 = self._n_m_e_r_i(4, self.population_size, not_equal_to=[i, r_best])
         v0, v1, v2 = self.population[r_best], self.population[r1], self.population[r2]
-        mutant = self.basic_mutation(v0, v1, v2, f*0.5)
+        mutant = self.basic_mutation(v0, v1, v2, f*0.5)[0]
         v3, v4 = self.population[r3], self.population[r4]
         return self.basic_mutation(mutant, v3, v4, f*0.5)
 
@@ -293,23 +302,30 @@ class DifferentialEvolution(object):
     def mutation(self):
         '''
         Mutate all vectors in the population.
-        Yields an iterator of mutants.
+        Yields an iterator of mutants with metadata.
         '''
         base_vector_indices = self.base_vector_selection_scheme()
-        for i, vi in enumerate(self.population):
-            mutant = self.mutation_scheme(i, self.f, base_vector_indices[i])
+        if self.f_decay:
+            f = 1.2 * self.f
+            f = f - (f/float(self.max_generations)) * self.generation
+        else:
+            f = self.f
+        for i in xrange(len(self.population)):
+            mutant, metadata = self.mutation_scheme(i, f, base_vector_indices[i])
             if self.absolute_bounds:
                 mutant = self.enforce_absolute_bounds(mutant)
-            yield mutant
+            yield mutant, metadata
 
     # The following function performs the crossover operation.
-    def crossover(self, v1, v2):
+    def crossover(self, v1, v2, metadata):
         '''
         Creates a trial vector by crossing v1 with v2 to create v3.
         The probability of a v2 element being selected over a v1 element is c,
         the crossover factor. There also exists an 'i_rand' to guarantee that
         at least one mutant value is chosen in the crossover.
         '''
+        c = self.c_randomisation(self.c)
+        metadata['c'] = c
         v3 = []
         i_rand = numpy.random.randint(self.dimensionality)
         random_array = numpy.random.rand(self.dimensionality)
@@ -318,7 +334,7 @@ class DifferentialEvolution(object):
                 v3.append(v1[i])
             else:
                 v3.append(v2[i])
-        return numpy.array(v3)
+        return numpy.array(v3), metadata
 
     # One of these functions is called at the end of each generation. The
     # convergence functions given here are selectable termination criteria.
@@ -378,6 +394,37 @@ class DifferentialEvolution(object):
         print '%s%s%s%s'%(str(iteration).ljust(cs/2), str(mean).ljust(cs),
             str(std).ljust(cs), str(best).ljust(cs/2))
 
+    # Hooks - called at key points throughout the solution process.
+    def solution_commencing_hook(self):
+        '''
+        This hook is called after the population is initialised
+        but before the solver starts. Could be used to define
+        instance variables used in later hooks.
+        '''
+        pass
+
+    def tournament_complete_hook(self, trial_cost, parent_cost, metadata):
+        '''
+        This hook is called after each tournament.
+        It could be used toperform postprocessing or logical (i.e. self-
+        adaptive) operations.
+        '''
+        pass
+
+    def generation_complete_hook(self):
+        '''
+        This hook is called after each generation.
+        It could be used toperform postprocessing or logical (i.e. self-
+        adaptive) operations.
+        '''
+        pass
+
+    def solution_complete_hook(self):
+        '''
+        This hook is called after a solution is successfully found.
+        '''
+        pass
+
     # This is the engine of the algorithm - the solve function calls
     # de and tournament to optimise the given cost function.
     def de(self):
@@ -386,24 +433,25 @@ class DifferentialEvolution(object):
         using mutation and crossover operations.
         It returns a trial population as an iterator.
         '''
-        mutants = self.mutation()
-        trial_population = (self.crossover(self.population[i], mutant)
-            for i, mutant in enumerate(mutants))
-        return trial_population
+        mutants_with_metadata = self.mutation()
+        for i, (mutant, metadata) in enumerate(mutants_with_metadata):
+            trial_vector, metadata = self.crossover(
+                    self.population[i], mutant, metadata)
+            yield trial_vector, metadata
 
-    def tournament(self, trial_population):
+    def tournament(self, trial_vector_index, trial_vector, metadata):
         '''
         This function calculates the cost function for each trial vector.
         If the trial vector is more successful, it replaces its parent in
         the population.
         '''
-        for i, trial in enumerate(trial_population):
-            # Select the winner and update the population/costs.
-            trial_cost = self.cost(trial)
-            self.function_evaluations += 1
-            if trial_cost < self.costs[i]:
-                self.population[i] = trial
-                self.costs[i] = trial_cost
+        trial_cost = self.cost(trial_vector)
+        self.function_evaluations += 1
+        parent_cost = self.costs[trial_vector_index]
+        if trial_cost < parent_cost:
+            self.population[trial_vector_index] = trial_vector
+            self.costs[trial_vector_index] = trial_cost
+        self.tournament_complete_hook(trial_cost, parent_cost, metadata)
 
     def solve(self):
         '''
@@ -419,6 +467,8 @@ class DifferentialEvolution(object):
                 'convergence_function', self.convergence_functions)
         self._string_to_function_if_string(
                 'f_randomisation', self.f_randomisers)
+        self._string_to_function_if_string(
+                'c_randomisation', self.c_randomisers)
         # Initialise the solver
         self.population = self.initialise_population()
         self.costs = [self.cost(vector) for vector in self.population]
@@ -427,15 +477,18 @@ class DifferentialEvolution(object):
         if self.verbosity != 0:
             self.basic_logging()
         # Start iterating.
+        self.solution_commencing_hook()
         for i in xrange(self.max_generations):
             self.generation = i+1
             # If logging, show output
             if self.verbosity > 1:
                 self.log_solution(self.generation)
             # Evolve the next generation
-            trial_population = self.de()
+            trial_population_with_metadata = self.de()
             # Tournament-select the next generation
-            self.tournament(trial_population)
+            for j, (trial_vector, metadata) in enumerate(trial_population_with_metadata):
+                self.tournament(j, trial_vector, metadata)
+            self.generation_complete_hook()
             # Check for solution convergence
             convergence = self.convergence_function()
             if convergence:
@@ -443,6 +496,7 @@ class DifferentialEvolution(object):
                 victor_index = self.get_best_vector_index()
                 victor = numpy.round(self.population[victor_index],
                     self.decimal_precision)
+                self.solution_complete_hook()
                 return victor, self.generation, self.function_evaluations
         # If we get to here, we haven't achieved convergence. Raise an error.
         raise NotConvergedException('The solution did not converge')
@@ -450,71 +504,48 @@ class DifferentialEvolution(object):
 
 class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
     '''
-    DE, modified such that there is no need to preselect f
+    DE, modified such that there is no need to preselect c
     '''
     def __init__(self):
+        '''
+        c_randomisation must be 'dither'
+        '''
         super(SelfAdaptiveDifferentialEvolution, self).__init__()
-        # Restrict our choices to /1/ mutators
-        self.mutators = {
-            'de/rand/1/bin': self.de_rand_1,
-            'de/best/1/bin': self.de_best_1,
-            'de/current_to_best/1/bin': self.de_current_to_best_1,
-            'de/rand_then_best/1/bin': self.de_rand_then_best_1,
-        }
-        # Must use dither, such that each vector has its own f value.
-        self.f_randomisation = self.dither
+        self.c_randomisation = 'dither'
 
-    def basic_mutation(self, v0, v1, v2, f):
+    def solution_commencing_hook(self):
         '''
-        Modify mutation to keep track of f
+        This hook is called after the population is initialised
+        but before the solver starts. Could be used to define
+        instance variables used in later hooks.
         '''
-        f = self.f_randomisation(f)
-        return v0 + (f * (v1 - v2)), f
+        self.winning_c_vals = []
 
-    def mutation(self):
+    def tournament_complete_hook(self, trial_cost, parent_cost, metadata):
         '''
-        As above
+        This hook is called after each tournament.
+        It could be used toperform postprocessing or logical (i.e. self-
+        adaptive) operations.
         '''
-        if not self.generation % 20:
-            print numpy.mean(self.successes) - numpy.mean(self.failures)
-            #self.successes, self.failures = [], []
-        base_vector_indices = self.base_vector_selection_scheme()
-        for i, vi in enumerate(self.population):
-            mutant, f = self.mutation_scheme(i, self.f, base_vector_indices[i])
-            if self.absolute_bounds:
-                mutant = self.enforce_absolute_bounds(mutant)
-            yield mutant, f
+        if trial_cost < parent_cost:
+            self.winning_c_vals.append(metadata['c'])
 
-    def de(self):
+    def generation_complete_hook(self):
         '''
-        As above
+        This hook is called after each generation.
+        It could be used toperform postprocessing or logical (i.e. self-
+        adaptive) operations.
         '''
-        mutants = self.mutation()
-        trial_population = ((self.crossover(self.population[i], mutant), f)
-                for i, (mutant, f) in enumerate(mutants))
-        return trial_population
+        if not self.generation % 5 and self.generation > 10 and self.winning_c_vals:
+            mean = numpy.mean(self.winning_c_vals)
+            # Fix mean between 0 and 1
+            mean = min(1, mean)
+            mean = max(0, mean)
+            self.c = mean
+            self.winning_c_vals = self.winning_c_vals[5*self.population_size:]
 
-    def tournament(self, trial_population):
+    def solution_complete_hook(self):
         '''
-        As above
+        This hook is called after a solution is successfully found.
         '''
-        for i, (trial, f) in enumerate(trial_population):
-            # Select the winner and update the population/costs.
-            trial_cost = self.cost(trial)
-            self.function_evaluations += 1
-            if trial_cost < self.costs[i]:
-                self.population[i] = trial
-                self.costs[i] = trial_cost
-                self.successes.append(f)
-            else:
-                self.failures.append(f)
-
-    def solve(self):
-        '''
-        Print the f log as well.
-        '''
-        # Use lists to record downward motion.
-        self.successes, self.failures = [], []
-        victor, generation, function_evaluations = \
-            super(SelfAdaptiveDifferentialEvolution, self).solve()
-        return victor, generation, function_evaluations
+        print self.c

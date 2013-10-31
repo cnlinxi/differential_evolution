@@ -18,12 +18,15 @@ class TestDifferentialEvolution(SelfAdaptiveDifferentialEvolution):
         super(TestDifferentialEvolution, self).__init__()
         self.verbosity = 0
         self.convergence_function = 'vtr'
-        self.mutation_scheme = 'de/rand/1/bin'
+        self.mutation_scheme = 'de/best/1/bin'
         self.base_vector_selection_scheme = 'permuted'
-        self.population_size = int(5 * (self.dimensionality) ** 0.5)
-        self.f = 0.7
-        self.c = 0.9
-        self.max_generations = 1000
+        self.f_randomisation = 'static'
+        self.population_size = int(25 * (self.dimensionality) ** 0.5)
+        self.f_decay = False
+        self.f = 0.8
+        self.c = 0.5
+        self.max_generations = int((self.population_size) * 20)
+        self.value_to_reach *= 10e3 # Make this more lenient. We're not as fussy as Storn and Price.
 
 
 def initialise_worksheet(ws, var_name, var_list):
@@ -53,16 +56,18 @@ def initialise_worksheet(ws, var_name, var_list):
 
 
 def tests():
-    dimensions = [2]
+    dimensions = [2, 5]
     variables = {
         #'population_size': [10, 30, 50, 100],
-        'f': [0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.1],
+        # 'f': [0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.1],
         #'c': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
         # 'mutation_scheme': ['de/rand/1/bin', 'de/best/1/bin', 'de/current_to_best/1/bin', 'de/rand/2/bin', 'de/best/2/bin', 'de/rand_then_best/1/bin'],
-        #'base_vector_selection_scheme': ['random', 'permuted', 'offset']
-        #'f_randomisation': ['static', 'dither', 'jitter']
+        #'base_vector_selection_scheme': ['random', 'permuted', 'offset'],
+        #'f_randomisation': ['static', 'dither', 'jitter'],
+        #'f_decay': [True, False],
+        'c_randomisation': ['static', 'dither'],
     }
-    repeats = 1
+    repeats = 10
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
     wb_name = 'DE_Tests.xlsx'
@@ -81,15 +86,15 @@ def tests():
             'sphere': test_functions.SphereDifferentialEvolution(d=d),
             'hyper-ellipsoid': test_functions.HyperEllipsoidDifferentialEvolution(d=d),
             'rozenbrock': test_functions.RozenbrockDifferentialEvolution(d=d),
-            'schwefel-ridge': test_functions.SchwefelDifferentialEvolution(d=d),
-            'neumaier': test_functions.NeumaierDifferentialEvolution(d=d),
+            #'schwefel-ridge': test_functions.SchwefelDifferentialEvolution(d=d),
+            #'neumaier': test_functions.NeumaierDifferentialEvolution(d=d), # NONZERO TARGET
         }
         multimodal_problems = {
             'ackley': test_functions.AckleyDifferentialEvolution(d=d),
-            'griewangk': test_functions.GriewangkDifferentialEvolution(d=d),
+            #'griewangk': test_functions.GriewangkDifferentialEvolution(d=d),
             'rastrigin': test_functions.RastriginDifferentialEvolution(d=d),
-            'salomon': test_functions.SalomonDifferentialEvolution(d=d),
-            'whitley': test_functions.WhitleyDifferentialEvolution(d=d),
+            #'salomon': test_functions.SalomonDifferentialEvolution(d=d),
+            #'whitley': test_functions.WhitleyDifferentialEvolution(d=d),
             #'storn': test_functions.StornDifferentialEvolution(d=d),
             #'lennard-jones': test_functions.LennardJonesDifferentialEvolution(d=d),
             #'hilbert': test_functions.HilbertDifferentialEvolution(d=d),
@@ -99,9 +104,9 @@ def tests():
             #'katsuura': test_functions.KatsuuraDifferentialEvolution(d=d),
         }
         bound_problems = {
-            'schwefel': test_functions.SchwefelDifferentialEvolution(d=d),
+            #'schwefel': test_functions.SchwefelDifferentialEvolution(d=d), # NONZERO TARGET
             #'michalewicz': test_functions.MichalewiczDifferentialEvolution(d=d),
-            'rana': test_functions.RanaDifferentialEvolution(d=d)
+            #'rana': test_functions.RanaDifferentialEvolution(d=d)  # NONZERO TARGET
         }
         all_problems = dict(unimodal_problems.items() +
             multimodal_problems.items() + bound_problems.items())
@@ -121,11 +126,11 @@ def tests():
                             solution, generations, evals = problem.solve()
                             generations_log.append(generations)
                             function_evaluations_log.append(evals)
-                            print '%s: Converged with %s function evaluations'%(
-                                run_name, evals)
+                            print '%s:\tConverged with %s function evaluations over %s generations'%(
+                                run_name, evals, generations)
                         except NotConvergedException:
                             failures += 1
-                            print '%s: Failure'%(run_name)
+                            print '%s:\tFailure'%(run_name)
                     success_ratio = float(repeats - failures) / float(repeats)
                     results.append(numpy.around(success_ratio,3))
                     if failures != repeats:
