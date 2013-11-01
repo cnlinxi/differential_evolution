@@ -18,15 +18,15 @@ class TestDifferentialEvolution(SelfAdaptiveDifferentialEvolution):
         super(TestDifferentialEvolution, self).__init__()
         self.verbosity = 0
         self.convergence_function = 'vtr'
-        self.mutation_scheme = 'de/best/1/bin'
+        self.mutation_scheme = 'de/rand/1/bin'
         self.base_vector_selection_scheme = 'permuted'
+        self.population_size = int(11.69 * self.dimensionality**0.63)  # Power law obtained from Np = 50 when d = 10, Np = 100 when d = 30
+        self.f = 0.9
         self.f_randomisation = 'static'
-        self.population_size = int(25 * (self.dimensionality) ** 0.5)
         self.f_decay = False
-        self.f = 0.8
         self.c = 0.5
-        self.max_generations = int((self.population_size) * 20)
-        self.value_to_reach *= 10e3 # Make this more lenient. We're not as fussy as Storn and Price.
+        self.c_randomisation = 'dither'
+        self.max_generations = 100 * self.population_size
 
 
 def initialise_worksheet(ws, var_name, var_list):
@@ -56,18 +56,18 @@ def initialise_worksheet(ws, var_name, var_list):
 
 
 def tests():
-    dimensions = [2, 5]
+    dimensions = [5, 10, 15]
     variables = {
-        #'population_size': [10, 30, 50, 100],
+        'population_size': [10, 30, 100],
         # 'f': [0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.1],
         #'c': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
         # 'mutation_scheme': ['de/rand/1/bin', 'de/best/1/bin', 'de/current_to_best/1/bin', 'de/rand/2/bin', 'de/best/2/bin', 'de/rand_then_best/1/bin'],
         #'base_vector_selection_scheme': ['random', 'permuted', 'offset'],
         #'f_randomisation': ['static', 'dither', 'jitter'],
         #'f_decay': [True, False],
-        'c_randomisation': ['static', 'dither'],
+        #'c_randomisation': ['dither'],
     }
-    repeats = 10
+    repeats = 5
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
     wb_name = 'DE_Tests.xlsx'
@@ -83,16 +83,16 @@ def tests():
     # Run the tests
     for d in dimensions:
         unimodal_problems = {
-            'sphere': test_functions.SphereDifferentialEvolution(d=d),
-            'hyper-ellipsoid': test_functions.HyperEllipsoidDifferentialEvolution(d=d),
+            #'sphere': test_functions.SphereDifferentialEvolution(d=d),
+            #'hyper-ellipsoid': test_functions.HyperEllipsoidDifferentialEvolution(d=d),
             'rozenbrock': test_functions.RozenbrockDifferentialEvolution(d=d),
             #'schwefel-ridge': test_functions.SchwefelDifferentialEvolution(d=d),
             #'neumaier': test_functions.NeumaierDifferentialEvolution(d=d), # NONZERO TARGET
         }
         multimodal_problems = {
-            'ackley': test_functions.AckleyDifferentialEvolution(d=d),
+            #'ackley': test_functions.AckleyDifferentialEvolution(d=d),
             #'griewangk': test_functions.GriewangkDifferentialEvolution(d=d),
-            'rastrigin': test_functions.RastriginDifferentialEvolution(d=d),
+            #'rastrigin': test_functions.RastriginDifferentialEvolution(d=d),
             #'salomon': test_functions.SalomonDifferentialEvolution(d=d),
             #'whitley': test_functions.WhitleyDifferentialEvolution(d=d),
             #'storn': test_functions.StornDifferentialEvolution(d=d),
@@ -116,18 +116,18 @@ def tests():
             for var_name, var_list in sorted(variables.iteritems()):
                 results = [problem_name, d]
                 for attr in var_list:
-                    setattr(problem, var_name, attr)
                     generations_log = []
                     function_evaluations_log = []
                     failures = 0
                     for i in xrange(repeats):
+                        setattr(problem, var_name, attr)
                         run_name = '- Run %s with %s = %s'%(i+1, var_name, attr)
                         try:
-                            solution, generations, evals = problem.solve()
+                            solution, generations, evals, np, c, f_thresholds, m_thresholds = problem.solve()
                             generations_log.append(generations)
                             function_evaluations_log.append(evals)
-                            print '%s:\tConverged with %s function evaluations over %s generations'%(
-                                run_name, evals, generations)
+                            print '%s:\tConverged with %s function evaluations over %s generations (Np = %s). c=%s, f=%s, m=%s'%(
+                                run_name, evals, generations, np, c, f_thresholds, m_thresholds)
                         except NotConvergedException:
                             failures += 1
                             print '%s:\tFailure'%(run_name)

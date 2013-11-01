@@ -1,6 +1,7 @@
 # We rely on numpy for array/vector operations and advanced maths.
-# Also use time information for logging
-import numpy, datetime
+import numpy
+import datetime
+import itertools
 
 class NotConvergedException(Exception):
     '''
@@ -90,7 +91,7 @@ class DifferentialEvolution(object):
         # problem dimensionality (2D = 10, 3D = 15, etc.).
         # I found a power law to be slightly
         # more reliable at low dim. and faster at high dim.
-        self.population_size = int(10 * (self.dimensionality) ** 0.5)
+        self.population_size = int(11.69 * self.dimensionality**0.63)
         # Select logging amount. 0=silent, 1=basic, 2=verbose.
         self.verbosity = 2
 
@@ -207,14 +208,14 @@ class DifferentialEvolution(object):
         mutant = numpy.maximum(self.min_vector, mutant)
         return mutant
 
-    def dither(self, x, sigma=0.3):
+    def dither(self, x, sigma=0.2):
         '''
         Returns a scalar based on a normal distribution about x
         with a standard deviation of sigma.
         '''
         return numpy.random.normal(x, sigma)
 
-    def jitter(self, x, sigma=0.3):
+    def jitter(self, x, sigma=0.2):
         '''
         Returns a vector based on a normal distribution about x
         with a standard deviation of sigma.
@@ -310,7 +311,7 @@ class DifferentialEvolution(object):
             f = f - (f/float(self.max_generations)) * self.generation
         else:
             f = self.f
-        for i in xrange(len(self.population)):
+        for i in xrange(self.population_size):
             mutant, metadata = self.mutation_scheme(i, f, base_vector_indices[i])
             if self.absolute_bounds:
                 mutant = self.enforce_absolute_bounds(mutant)
@@ -351,7 +352,8 @@ class DifferentialEvolution(object):
         Returns True when the lowest function cost dips below a given value.
         (a Value To Reach)
         '''
-        return min(self.costs) < self.value_to_reach
+        if min(self.costs) < self.value_to_reach:
+            return True
 
     # The following functions log progress. Whether one or all of them is called
     # depends on the verbosity setting.
@@ -419,11 +421,12 @@ class DifferentialEvolution(object):
         '''
         pass
 
-    def solution_complete_hook(self):
+    def solution_complete_hook(self, victor):
         '''
         This hook is called after a solution is successfully found.
         '''
-        pass
+        return (victor, self.generation, self.function_evaluations,
+                self.population_size, None, None, None)
 
     # This is the engine of the algorithm - the solve function calls
     # de and tournament to optimise the given cost function.
@@ -496,22 +499,61 @@ class DifferentialEvolution(object):
                 victor_index = self.get_best_vector_index()
                 victor = numpy.round(self.population[victor_index],
                     self.decimal_precision)
-                self.solution_complete_hook()
-                return victor, self.generation, self.function_evaluations
+                return self.solution_complete_hook(victor)
         # If we get to here, we haven't achieved convergence. Raise an error.
         raise NotConvergedException('The solution did not converge')
 
 
 class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
     '''
-    DE, modified such that there is no need to preselect c
+    DE, modified such that there is no need to preselect c or f_randomisation
     '''
-    def __init__(self):
+    def roulette_wheel(self, names, success_history, population_protection=0.05):
         '''
-        c_randomisation must be 'dither'
+        Redistribute a roulette-wheel selection system based on a success
+        history. Optionally protect 'weaker' entities through
+        population_protection to prevent extinction.
         '''
-        super(SelfAdaptiveDifferentialEvolution, self).__init__()
-        self.c_randomisation = 'dither'
+        success_history_length = float(len(success_history))
+        thresholds = numpy.zeros(len(names) + 1)
+        for i, name in enumerate(names):
+            success_count = success_history.count(name)
+            success_proportion = success_count / success_history_length
+            if success_proportion < population_protection:
+                success_proportion = population_protection
+            thresholds[i+1] = thresholds[i] + success_proportion
+        # Scale down to make the max threshold = 1.
+        thresholds *= (1.0 / thresholds[-1])
+        return thresholds
+
+    def basic_mutation(self, v0, v1, v2, f):
+        '''
+        Override basic_mutation to pick f_randomisation schemes from a
+        roulette wheel.
+        '''
+        rand = numpy.random.rand()
+        if rand < self.f_thresholds[1]:
+            metadata = {'f_randomisation': 'static', 'f': f}
+        elif rand < self.f_thresholds[2]:
+            f = self.dither(f)
+            metadata = {'f_randomisation': 'dither', 'f': f}
+        else:
+            f = self.jitter(f)
+            metadata = {'f_randomisation': 'jitter', 'f': f}
+        return v0 + (f * (v1 - v2)), metadata
+
+    def roulette_mutation(self, i, f, r0):
+        '''
+        New function to pick a mutation scheme from a roulette wheel.
+        '''
+        rand = numpy.random.rand()
+        if rand < self.mutation_scheme_thresholds[1]:
+            mutant, metadata = self.de_rand_1(i, f, r0)
+            metadata['mutation_scheme'] = 'de_rand_1'
+        else:
+            mutant, metadata = self.de_best_1(i, f, r0)
+            metadata['mutation_scheme'] = 'de_best_1'
+        return mutant, metadata
 
     def solution_commencing_hook(self):
         '''
@@ -520,32 +562,69 @@ class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
         instance variables used in later hooks.
         '''
         self.winning_c_vals = []
+        self.winning_f_randomisers = []
+        self.winning_mutation_schemes = []
+        self.f_thresholds = numpy.array([0, 0.33333, 0.66667, 1])
+        self.mutation_scheme_thresholds = numpy.array([0, 0.7, 1])
+        self.mutation_scheme = self.roulette_mutation
 
     def tournament_complete_hook(self, trial_cost, parent_cost, metadata):
         '''
         This hook is called after each tournament.
-        It could be used toperform postprocessing or logical (i.e. self-
+        It could be used to perform postprocessing or logical (i.e. self-
         adaptive) operations.
         '''
         if trial_cost < parent_cost:
             self.winning_c_vals.append(metadata['c'])
+            self.winning_f_randomisers.append(metadata['f_randomisation'])
+            self.winning_mutation_schemes.append(metadata['mutation_scheme'])
 
     def generation_complete_hook(self):
         '''
         This hook is called after each generation.
-        It could be used toperform postprocessing or logical (i.e. self-
+        It could be used to perform postprocessing or logical (i.e. self-
         adaptive) operations.
         '''
-        if not self.generation % 5 and self.generation > 10 and self.winning_c_vals:
+        update_period = 5
+        if not self.generation % update_period and self.generation > 10 and self.winning_c_vals:
             mean = numpy.mean(self.winning_c_vals)
             # Fix mean between 0 and 1
             mean = min(1, mean)
             mean = max(0, mean)
             self.c = mean
-            self.winning_c_vals = self.winning_c_vals[5*self.population_size:]
+            # Modify the roulette wheel for f_randomisers
+            self.f_thresholds = self.roulette_wheel(
+                    ['static', 'dither', 'jitter'], self.winning_f_randomisers)
+            # And for mutation functions
+            self.mutation_scheme_thresholds = self.roulette_wheel(
+                    ['de_rand_1', 'de_best_1'], self.winning_mutation_schemes)
+            # Remove some system inertia
+            self.winning_c_vals = []#self.winning_c_vals[-self.population_size:]
+            self.winning_f_randomisers = []#self.winning_f_randomisers[-self.population_size:]
+            self.winning_mutation_schemes = []#self.winning_mutation_schemes[-self.population_size:]
+            # Remove redundant members of the population
+            if self.population_size > 5:
+                population_stack = numpy.column_stack(self.population)
+                std = numpy.std(population_stack, axis=1)
+                marked = set()
+                for i1, i2 in itertools.combinations(xrange(len(self.population)), 2):
+                    abs_difference = numpy.abs(self.population[i1] - self.population[i2])
+                    if all(numpy.less(abs_difference, 0.001*std)):
+                        pass #marked.add(i1)
+                # Reverse to prevent indexing problems whilst popping
+                for i in sorted(marked, reverse=True):
+                    self.population.pop(i)
+                    self.costs.pop(i)
+                    self.population_size -= 1
+                    if self.population_size <= 5:
+                        break
 
-    def solution_complete_hook(self):
+    def solution_complete_hook(self, victor):
         '''
         This hook is called after a solution is successfully found.
+        It should return one or more values.
         '''
-        print self.c
+        return (victor, self.generation, self.function_evaluations,
+                self.population_size, numpy.round(self.c,2), numpy.round(self.f_thresholds,2),
+                numpy.round(self.mutation_scheme_thresholds,2))
+
