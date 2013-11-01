@@ -62,8 +62,6 @@ class DifferentialEvolution(object):
         self.f = 0.85
         # Select f distribution
         self.f_randomisation = 'static'
-        # Should f decay over the course of the solution process?
-        self.f_decay = False
         # Crossover factor (see def crossover)
         self.c = 0.85
         # Select c distribution
@@ -306,13 +304,8 @@ class DifferentialEvolution(object):
         Yields an iterator of mutants with metadata.
         '''
         base_vector_indices = self.base_vector_selection_scheme()
-        if self.f_decay:
-            f = 1.2 * self.f
-            f = f - (f/float(self.max_generations)) * self.generation
-        else:
-            f = self.f
         for i in xrange(self.population_size):
-            mutant, metadata = self.mutation_scheme(i, f, base_vector_indices[i])
+            mutant, metadata = self.mutation_scheme(i, self.f, base_vector_indices[i])
             if self.absolute_bounds:
                 mutant = self.enforce_absolute_bounds(mutant)
             yield mutant, metadata
@@ -501,14 +494,14 @@ class DifferentialEvolution(object):
                     self.decimal_precision)
                 return self.solution_complete_hook(victor)
         # If we get to here, we haven't achieved convergence. Raise an error.
-        raise NotConvergedException('The solution did not converge')
+        raise NotConvergedException('The solution did not converge', min(self.costs))
 
 
 class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
     '''
     DE, modified such that there is no need to preselect c or f_randomisation
     '''
-    def roulette_wheel(self, names, success_history, population_protection=0.05):
+    def roulette_wheel(self, names, success_history, population_protection=0.02):
         '''
         Redistribute a roulette-wheel selection system based on a success
         history. Optionally protect 'weaker' entities through
@@ -550,6 +543,9 @@ class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
         if rand < self.mutation_scheme_thresholds[1]:
             mutant, metadata = self.de_rand_1(i, f, r0)
             metadata['mutation_scheme'] = 'de_rand_1'
+        elif rand < self.mutation_scheme_thresholds[2]:
+            mutant, metadata = self.de_current_to_best_1(i, f, r0)
+            metadata['mutation_scheme'] = 'de_current_to_best_1'
         else:
             mutant, metadata = self.de_best_1(i, f, r0)
             metadata['mutation_scheme'] = 'de_best_1'
@@ -565,7 +561,7 @@ class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
         self.winning_f_randomisers = []
         self.winning_mutation_schemes = []
         self.f_thresholds = numpy.array([0, 0.33333, 0.66667, 1])
-        self.mutation_scheme_thresholds = numpy.array([0, 0.7, 1])
+        self.mutation_scheme_thresholds = numpy.array([0, 0.5, 0.75, 1])
         self.mutation_scheme = self.roulette_mutation
 
     def tournament_complete_hook(self, trial_cost, parent_cost, metadata):
@@ -597,27 +593,11 @@ class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
                     ['static', 'dither', 'jitter'], self.winning_f_randomisers)
             # And for mutation functions
             self.mutation_scheme_thresholds = self.roulette_wheel(
-                    ['de_rand_1', 'de_best_1'], self.winning_mutation_schemes)
+                    ['de_rand_1', 'de_current_to_best_1', 'de_best_1'], self.winning_mutation_schemes)
             # Remove some system inertia
-            self.winning_c_vals = []#self.winning_c_vals[-self.population_size:]
-            self.winning_f_randomisers = []#self.winning_f_randomisers[-self.population_size:]
-            self.winning_mutation_schemes = []#self.winning_mutation_schemes[-self.population_size:]
-            # Remove redundant members of the population
-            if self.population_size > 5:
-                population_stack = numpy.column_stack(self.population)
-                std = numpy.std(population_stack, axis=1)
-                marked = set()
-                for i1, i2 in itertools.combinations(xrange(len(self.population)), 2):
-                    abs_difference = numpy.abs(self.population[i1] - self.population[i2])
-                    if all(numpy.less(abs_difference, 0.001*std)):
-                        pass #marked.add(i1)
-                # Reverse to prevent indexing problems whilst popping
-                for i in sorted(marked, reverse=True):
-                    self.population.pop(i)
-                    self.costs.pop(i)
-                    self.population_size -= 1
-                    if self.population_size <= 5:
-                        break
+            self.winning_c_vals = []
+            self.winning_f_randomisers = []
+            self.winning_mutation_schemes = []
 
     def solution_complete_hook(self, victor):
         '''

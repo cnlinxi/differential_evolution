@@ -70,7 +70,7 @@ class RozenbrockDifferentialEvolution(TestDifferentialEvolution):
         bound = numpy.array([30] * self.dimensionality)
         return -1 * bound, bound
 
-class SchwefelDifferentialEvolution(TestDifferentialEvolution):
+class SchwefelRidgeDifferentialEvolution(TestDifferentialEvolution):
     '''
     valid for any dimension, n>0
     constraints: unconstrained

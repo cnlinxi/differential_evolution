@@ -21,7 +21,7 @@ class TestDifferentialEvolution(SelfAdaptiveDifferentialEvolution):
         self.mutation_scheme = 'de/rand/1/bin'
         self.base_vector_selection_scheme = 'permuted'
         self.population_size = int(11.69 * self.dimensionality**0.63)  # Power law obtained from Np = 50 when d = 10, Np = 100 when d = 30
-        self.f = 0.9
+        self.f = 0.8
         self.f_randomisation = 'static'
         self.f_decay = False
         self.c = 0.5
@@ -56,18 +56,17 @@ def initialise_worksheet(ws, var_name, var_list):
 
 
 def tests():
-    dimensions = [5, 10, 15]
+    dimensions = [3, 5, 10]
     variables = {
-        'population_size': [10, 30, 100],
-        # 'f': [0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.1],
+        #'population_size': [10, 30, 100],
+        # 'f': [0.3, 0.5, 0.7, 0.9],
         #'c': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
         # 'mutation_scheme': ['de/rand/1/bin', 'de/best/1/bin', 'de/current_to_best/1/bin', 'de/rand/2/bin', 'de/best/2/bin', 'de/rand_then_best/1/bin'],
         #'base_vector_selection_scheme': ['random', 'permuted', 'offset'],
         #'f_randomisation': ['static', 'dither', 'jitter'],
-        #'f_decay': [True, False],
         #'c_randomisation': ['dither'],
     }
-    repeats = 5
+    repeats = 50
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
     wb_name = 'DE_Tests.xlsx'
@@ -83,11 +82,11 @@ def tests():
     # Run the tests
     for d in dimensions:
         unimodal_problems = {
-            #'sphere': test_functions.SphereDifferentialEvolution(d=d),
-            #'hyper-ellipsoid': test_functions.HyperEllipsoidDifferentialEvolution(d=d),
+            'sphere': test_functions.SphereDifferentialEvolution(d=d),
+            'hyper-ellipsoid': test_functions.HyperEllipsoidDifferentialEvolution(d=d),
             'rozenbrock': test_functions.RozenbrockDifferentialEvolution(d=d),
-            #'schwefel-ridge': test_functions.SchwefelDifferentialEvolution(d=d),
-            #'neumaier': test_functions.NeumaierDifferentialEvolution(d=d), # NONZERO TARGET
+            'schwefel-ridge': test_functions.SchwefelRidgeDifferentialEvolution(d=d),
+            'neumaier': test_functions.NeumaierDifferentialEvolution(d=d), # NONZERO TARGET
         }
         multimodal_problems = {
             #'ackley': test_functions.AckleyDifferentialEvolution(d=d),
@@ -128,9 +127,9 @@ def tests():
                             function_evaluations_log.append(evals)
                             print '%s:\tConverged with %s function evaluations over %s generations (Np = %s). c=%s, f=%s, m=%s'%(
                                 run_name, evals, generations, np, c, f_thresholds, m_thresholds)
-                        except NotConvergedException:
+                        except NotConvergedException, best:
                             failures += 1
-                            print '%s:\tFailure'%(run_name)
+                            print '%s:\tFailure. Best value: %s'%(run_name, best[1])
                     success_ratio = float(repeats - failures) / float(repeats)
                     results.append(numpy.around(success_ratio,3))
                     if failures != repeats:
