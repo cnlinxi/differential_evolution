@@ -59,14 +59,14 @@ def tests():
     dimensions = [3, 5, 10]
     variables = {
         #'population_size': [10, 30, 100],
-        # 'f': [0.3, 0.5, 0.7, 0.9],
+        'f': [0.3, 0.5, 0.7, 0.9],
         #'c': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
         # 'mutation_scheme': ['de/rand/1/bin', 'de/best/1/bin', 'de/current_to_best/1/bin', 'de/rand/2/bin', 'de/best/2/bin', 'de/rand_then_best/1/bin'],
         #'base_vector_selection_scheme': ['random', 'permuted', 'offset'],
         #'f_randomisation': ['static', 'dither', 'jitter'],
         #'c_randomisation': ['dither'],
     }
-    repeats = 50
+    repeats = 10
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
     wb_name = 'DE_Tests.xlsx'

@@ -2,12 +2,44 @@
 import numpy
 import datetime
 import itertools
+import sys
+import os
 
 class NotConvergedException(Exception):
     '''
     Exception raised when a solution is not found
     '''
     pass
+    
+'''
+For backwards-compatibility with Python 2.4.
+'''
+def any(s):
+    for v in s:
+        if v:
+            return True
+    return False
+    
+def min_with_key(iterable, key):
+    # Only tested with lists or tuples!
+    try:
+        return min(iterable, key=key)
+    except TypeError:
+        keyed_iterable = [key(i) for i in iterable]
+        m = min(keyed_iterable)
+        i = keyed_iterable.index(m)
+        return iterable[i]
+        
+'''
+A general form of the print function, to change the output
+location in one line.
+'''
+def printer(text, output='stderr'):
+    if output == 'stdout':
+        print text
+    elif output == 'stderr':
+        sys.__stderr__.write(str(text) + os.linesep)
+        sys.__stderr__.flush()
 
 class DifferentialEvolution(object):
     '''
@@ -49,7 +81,7 @@ class DifferentialEvolution(object):
             'jitter': self.jitter,
         }
         self.c_randomisers = {
-            'static': lambda c: c,  # Just return f when this is called.
+            'static': lambda c: c,  # Just return c when this is called.
             'dither': self.dither,
         }
         # Selection of base vector scheme
@@ -66,7 +98,7 @@ class DifferentialEvolution(object):
         self.c = 0.85
         # Select c distribution
         self.c_randomisation = 'static'
-        # Number of iterations before the program terminates regardless
+        # Number of generations before the program terminates regardless
         # of convergence
         self.max_generations = 2000
         # Number of decimal places to which solutions are given.
@@ -80,11 +112,21 @@ class DifferentialEvolution(object):
         # the bounding vectors banned?
         self.absolute_bounds = False
         # Get the min and max vectors
-        self.min_vector, self.max_vector = self.get_bounding_vectors()
+        min_vector, max_vector = self.get_bounding_vectors()
+        self.min_vector = numpy.asarray(min_vector)
+        self.max_vector = numpy.asarray(max_vector)
         assert len(self.min_vector) == len(self.max_vector)
         # Having checked min_vector and max_vector are the same length, arbitrarily
         # take min_vector to establish the number of dimensions in the problem.
         self.dimensionality = len(self.min_vector)
+        # Add support for inequality constraints.
+        # These should be tuples, e.g. ('lte', 5), or None.
+        self.inequality_constraints = [None] * self.dimensionality
+        # Check for 'phantom' dimensions that are constrained to a single value.
+        self.phantom_indices = []
+        for i, x in enumerate(self.max_vector-self.min_vector):
+            if x==0:
+                self.phantom_indices.append(i)
         # Default value for population size is 5 times the
         # problem dimensionality (2D = 10, 3D = 15, etc.).
         # I found a power law to be slightly
@@ -135,6 +177,8 @@ class DifferentialEvolution(object):
             # Manipulate it so that it meets the specified min/max conditions
             vector *= range
             vector += mean
+            # Enforce any inequality constraints
+            vector = self.enforce_constraints(vector)
             # Add the fully-constructed vector to the population
             population.append(vector)
         return population
@@ -198,13 +242,32 @@ class DifferentialEvolution(object):
                 selected.add(rand)
         return tuple(selected)
 
-    def enforce_absolute_bounds(self, mutant):
+    def enforce_absolute_bounds(self, vector):
         '''
         Force a mutant vector to lie within the given boundaries.
         '''
-        mutant = numpy.minimum(self.max_vector, mutant)
-        mutant = numpy.maximum(self.min_vector, mutant)
-        return mutant
+        vector = numpy.minimum(self.max_vector, vector)
+        vector = numpy.maximum(self.min_vector, vector)
+        return vector
+        
+    def enforce_constraints(self, vector):
+        '''
+        Enforce any specified inequality or absolute bounds
+        constrains on a vector.
+        '''
+        for i in xrange(len(vector)):
+            inequality = self.inequality_constraints[i]
+            if inequality is not None:
+                mode, comparator_index = inequality
+                i_value = vector[i]
+                comparator_value = vector[comparator_index]
+                # Reverse the values such that they obey the inequality.
+                if (mode == 'gte' and i_value < comparator_value) or (mode == 'gt' and i_value <= comparator_value):
+                    vector[i] = comparator_value
+                    vector[comparator_index] = i_value
+        if self.absolute_bounds:
+            vector = self.enforce_absolute_bounds(vector)
+        return vector
 
     def dither(self, x, sigma=0.2):
         '''
@@ -224,7 +287,7 @@ class DifferentialEvolution(object):
         '''
         Get the index of the best-performing member of the population
         '''
-        return min(xrange(len(self.costs)), key=self.costs.__getitem__)
+        return min_with_key(xrange(len(self.costs)), key=self.costs.__getitem__)
 
     def basic_mutation(self, v0, v1, v2, f):
         '''
@@ -306,8 +369,7 @@ class DifferentialEvolution(object):
         base_vector_indices = self.base_vector_selection_scheme()
         for i in xrange(self.population_size):
             mutant, metadata = self.mutation_scheme(i, self.f, base_vector_indices[i])
-            if self.absolute_bounds:
-                mutant = self.enforce_absolute_bounds(mutant)
+            mutant = self.enforce_constraints(mutant)
             yield mutant, metadata
 
     # The following function performs the crossover operation.
@@ -322,6 +384,8 @@ class DifferentialEvolution(object):
         metadata['c'] = c
         v3 = []
         i_rand = numpy.random.randint(self.dimensionality)
+        while i_rand in self.phantom_indices:
+            i_rand = numpy.random.randint(self.dimensionality)
         random_array = numpy.random.rand(self.dimensionality)
         for i, random_number in enumerate(random_array):
             if random_number > self.c and i != i_rand:
@@ -345,8 +409,7 @@ class DifferentialEvolution(object):
         Returns True when the lowest function cost dips below a given value.
         (a Value To Reach)
         '''
-        if min(self.costs) < self.value_to_reach:
-            return True
+        return min(self.costs) < self.value_to_reach
 
     # The following functions log progress. Whether one or all of them is called
     # depends on the verbosity setting.
@@ -357,23 +420,15 @@ class DifferentialEvolution(object):
         '''
         current_time = datetime.datetime.now()
         time_string = current_time.strftime("%A, %d %B, %Y %I:%M%p")
-        print '\ndifferential_evolution.py'
-        print '\n2013 Blake Hemingway'
-        print 'The University of Sheffield'
-        print '\nRun started on %s'%(time_string)
-        print '\nSolution parameters:\n'
-        print 'Scaling factor:  \t%s'%(self.f)
-        print 'Crossover factor:\t%s'%(self.c)
-        print 'Convergence std: \t%s'%(self.convergence_std)
-        print 'Population size: \t%s'%(self.population_size)
-        print ''
-        if self.verbosity > 1:
-            self.col_spacing = self.dimensionality * (self.decimal_precision + 5)
-            cs = self.col_spacing
-            print ('Iteration'.ljust(cs/2) + 'Mean'.ljust(cs) +
-                'Standard Deviation'.ljust(cs) + 'Current Best'.ljust(cs/2))
+        printer('\n2014 Blake Hemingway')
+        printer('The University of Sheffield')
+        printer('\nRun started on %s'%(time_string))
+        printer('\nInitial solution parameters:\n')
+        printer('Scaling factor:  \t%s'%(self.f))
+        printer('Crossover factor:\t%s'%(self.c))
+        printer('Population size: \t%s\n'%(self.population_size))
 
-    def log_solution(self, iteration):
+    def log_solution(self, generation):
         '''
         Log data about the progress of the solution such as mean,
         standard deviation and current leader. Only called if the
@@ -385,9 +440,10 @@ class DifferentialEvolution(object):
         std = numpy.std(population_stack, axis=1)
         std = numpy.round(std, self.decimal_precision)
         best = numpy.round(min(self.costs), self.decimal_precision)
-        cs = self.col_spacing
-        print '%s%s%s%s'%(str(iteration).ljust(cs/2), str(mean).ljust(cs),
-            str(std).ljust(cs), str(best).ljust(cs/2))
+        printer('\nAt generation %s:'%(generation))
+        printer('Mean values: %s'%(str(mean)))
+        printer('std values: %s'%(str(std)))
+        printer('Best-so-far function value: %s\n\n'%(best))
 
     # Hooks - called at key points throughout the solution process.
     def solution_commencing_hook(self):
@@ -401,7 +457,7 @@ class DifferentialEvolution(object):
     def tournament_complete_hook(self, trial_cost, parent_cost, metadata):
         '''
         This hook is called after each tournament.
-        It could be used toperform postprocessing or logical (i.e. self-
+        It could be used to perform postprocessing or logical (i.e. self-
         adaptive) operations.
         '''
         pass
@@ -409,7 +465,7 @@ class DifferentialEvolution(object):
     def generation_complete_hook(self):
         '''
         This hook is called after each generation.
-        It could be used toperform postprocessing or logical (i.e. self-
+        It could be used to perform postprocessing or logical (i.e. self-
         adaptive) operations.
         '''
         pass
@@ -444,9 +500,18 @@ class DifferentialEvolution(object):
         trial_cost = self.cost(trial_vector)
         self.function_evaluations += 1
         parent_cost = self.costs[trial_vector_index]
-        if trial_cost < parent_cost:
+        printer('The trial vector %s has an associated cost function of %s'%(
+            str(trial_vector), str(trial_cost)))
+        # Less than or equal is important to avoid stagnation
+        # in quantised landscapes.
+        if trial_cost <= parent_cost:
+            printer('The trial cost was found to be lower than the parent cost of %s; therefore, the child vector has replaced its parent.'%(
+                str(parent_cost)))
             self.population[trial_vector_index] = trial_vector
             self.costs[trial_vector_index] = trial_cost
+        else:
+            printer('The trial cost was found to be greater than the parent cost of %s; therefore, the parent vector remains.'%(
+                str(parent_cost)))
         self.tournament_complete_hook(trial_cost, parent_cost, metadata)
 
     def solve(self):
@@ -465,13 +530,13 @@ class DifferentialEvolution(object):
                 'f_randomisation', self.f_randomisers)
         self._string_to_function_if_string(
                 'c_randomisation', self.c_randomisers)
+        # Initialise the logging process
+        if self.verbosity != 0:
+            self.basic_logging()
         # Initialise the solver
         self.population = self.initialise_population()
         self.costs = [self.cost(vector) for vector in self.population]
         self.function_evaluations = self.population_size
-        # Initialise the logging process
-        if self.verbosity != 0:
-            self.basic_logging()
         # Start iterating.
         self.solution_commencing_hook()
         for i in xrange(self.max_generations):
@@ -557,6 +622,7 @@ class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
         but before the solver starts. Could be used to define
         instance variables used in later hooks.
         '''
+        self.c_randomisation = self.dither
         self.winning_c_vals = []
         self.winning_f_randomisers = []
         self.winning_mutation_schemes = []
@@ -581,19 +647,22 @@ class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
         It could be used to perform postprocessing or logical (i.e. self-
         adaptive) operations.
         '''
-        update_period = 5
-        if not self.generation % update_period and self.generation > 10 and self.winning_c_vals:
+        update_period = 2
+        if not self.generation % update_period and self.generation >= 4 and self.winning_c_vals:
             mean = numpy.mean(self.winning_c_vals)
             # Fix mean between 0 and 1
             mean = min(1, mean)
             mean = max(0, mean)
             self.c = mean
+            printer('\nc has been adjusted to %s'%(str(self.c)))
             # Modify the roulette wheel for f_randomisers
             self.f_thresholds = self.roulette_wheel(
                     ['static', 'dither', 'jitter'], self.winning_f_randomisers)
+            printer('f thresholds have been adjusted to %s'%(str(self.f_thresholds)))
             # And for mutation functions
             self.mutation_scheme_thresholds = self.roulette_wheel(
                     ['de_rand_1', 'de_current_to_best_1', 'de_best_1'], self.winning_mutation_schemes)
+            printer('mutation scheme thresholds have been adjusted to %s'%(str(self.mutation_scheme_thresholds)))
             # Remove some system inertia
             self.winning_c_vals = []
             self.winning_f_randomisers = []
@@ -607,4 +676,3 @@ class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
         return (victor, self.generation, self.function_evaluations,
                 self.population_size, numpy.round(self.c,2), numpy.round(self.f_thresholds,2),
                 numpy.round(self.mutation_scheme_thresholds,2))
-
