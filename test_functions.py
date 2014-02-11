@@ -267,3 +267,30 @@ class RanaDifferentialEvolution(TestDifferentialEvolution):
         self.value_to_reach = -511.708 + 0.01
         bound = numpy.array([512] * self.dimensionality)
         return -1 * bound, bound
+        
+class BeamDifferentialEvolution(TestDifferentialEvolution):
+    '''
+    valid for any dimension, n>1
+    constraints: bound constrained
+    type: unimodal with one global minimum; non-seperable
+    initial upper bound = 10, initial lower bound = 0
+    value-to-reach = f(x*)+.01
+    f(x*) = 175
+    '''
+    def cost(self, x):
+        values = [(x[0]**4)/8.0, ((10-x[-1])**4)/8.0]
+        for i in xrange(1, self.dimensionality):
+            values.append(((x[i] - x[i-1])**4)/384)
+        value = max(values)
+        return value
+        
+    def get_bounding_vectors(self):
+        self.absolute_bounds = True
+        bound = numpy.array([10] * self.dimensionality)
+        return 0 * bound, bound
+        
+    def get_inequality_constraints(self):
+        c = [None]
+        for i in xrange(1, self.dimensionality):
+            c.append(('gte',i-1))
+        return c

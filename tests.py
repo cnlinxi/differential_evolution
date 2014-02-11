@@ -17,16 +17,16 @@ class TestDifferentialEvolution(SelfAdaptiveDifferentialEvolution):
         self.dimensionality = d
         super(TestDifferentialEvolution, self).__init__()
         self.verbosity = 0
-        self.convergence_function = 'vtr'
+        self.convergence_function = 'std'
+        self.convergence_std = 0.0001
         self.mutation_scheme = 'de/rand/1/bin'
-        self.base_vector_selection_scheme = 'permuted'
-        self.population_size = int(11.69 * self.dimensionality**0.63)  # Power law obtained from Np = 50 when d = 10, Np = 100 when d = 30
-        self.f = 0.8
-        self.f_randomisation = 'static'
-        self.f_decay = False
-        self.c = 0.5
-        self.c_randomisation = 'dither'
-        self.max_generations = 100 * self.population_size
+        self.base_vector_selection_scheme = 'random'
+        self.population_size = 32 #10 * self.dimensionality 
+        self.f = 0.9
+        self.f_randomisation = 'dither'
+        self.c = 1.0
+        #self.c_randomisation = 'dither'
+        self.max_generations = 1000 * self.population_size
 
 
 def initialise_worksheet(ws, var_name, var_list):
@@ -56,15 +56,16 @@ def initialise_worksheet(ws, var_name, var_list):
 
 
 def tests():
-    dimensions = [3, 5, 10]
+    dimensions = [9]
     variables = {
-        #'population_size': [10, 30, 100],
-        'f': [0.3, 0.5, 0.7, 0.9],
+        # 'population_size': [10, 30, 100],
+        #'f': [0.3, 0.5, 0.7, 0.9],
         #'c': [0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
         # 'mutation_scheme': ['de/rand/1/bin', 'de/best/1/bin', 'de/current_to_best/1/bin', 'de/rand/2/bin', 'de/best/2/bin', 'de/rand_then_best/1/bin'],
         #'base_vector_selection_scheme': ['random', 'permuted', 'offset'],
         #'f_randomisation': ['static', 'dither', 'jitter'],
         #'c_randomisation': ['dither'],
+        'huddling': [False, True]
     }
     repeats = 10
     # Initialise Excel workbook
@@ -82,11 +83,11 @@ def tests():
     # Run the tests
     for d in dimensions:
         unimodal_problems = {
-            'sphere': test_functions.SphereDifferentialEvolution(d=d),
-            'hyper-ellipsoid': test_functions.HyperEllipsoidDifferentialEvolution(d=d),
-            'rozenbrock': test_functions.RozenbrockDifferentialEvolution(d=d),
-            'schwefel-ridge': test_functions.SchwefelRidgeDifferentialEvolution(d=d),
-            'neumaier': test_functions.NeumaierDifferentialEvolution(d=d), # NONZERO TARGET
+            #'sphere': test_functions.SphereDifferentialEvolution(d=d),
+            #'hyper-ellipsoid': test_functions.HyperEllipsoidDifferentialEvolution(d=d),
+            #'rozenbrock': test_functions.RozenbrockDifferentialEvolution(d=d),
+            #'schwefel-ridge': test_functions.SchwefelRidgeDifferentialEvolution(d=d),
+            #'neumaier': test_functions.NeumaierDifferentialEvolution(d=d), # NONZERO TARGET
         }
         multimodal_problems = {
             #'ackley': test_functions.AckleyDifferentialEvolution(d=d),
@@ -106,6 +107,7 @@ def tests():
             #'schwefel': test_functions.SchwefelDifferentialEvolution(d=d), # NONZERO TARGET
             #'michalewicz': test_functions.MichalewiczDifferentialEvolution(d=d),
             #'rana': test_functions.RanaDifferentialEvolution(d=d)  # NONZERO TARGET
+            'beam': test_functions.BeamDifferentialEvolution(d=d)  # NONZERO TARGET
         }
         all_problems = dict(unimodal_problems.items() +
             multimodal_problems.items() + bound_problems.items())
@@ -123,6 +125,7 @@ def tests():
                         run_name = '- Run %s with %s = %s'%(i+1, var_name, attr)
                         try:
                             solution, generations, evals, np, c, f_thresholds, m_thresholds = problem.solve()
+                            print solution
                             generations_log.append(generations)
                             function_evaluations_log.append(evals)
                             print '%s:\tConverged with %s function evaluations over %s generations (Np = %s). c=%s, f=%s, m=%s'%(

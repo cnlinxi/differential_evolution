@@ -29,6 +29,16 @@ def min_with_key(iterable, key):
         m = min(keyed_iterable)
         i = keyed_iterable.index(m)
         return iterable[i]
+    
+def max_with_key(iterable, key):
+    # Only tested with lists or tuples!
+    try:
+        return max(iterable, key=key)
+    except TypeError:
+        keyed_iterable = [key(i) for i in iterable]
+        m = max(keyed_iterable)
+        i = keyed_iterable.index(m)
+        return iterable[i]
         
 '''
 A general form of the print function, to change the output
@@ -121,7 +131,7 @@ class DifferentialEvolution(object):
         self.dimensionality = len(self.min_vector)
         # Add support for inequality constraints.
         # These should be tuples, e.g. ('lte', 5), or None.
-        self.inequality_constraints = [None] * self.dimensionality
+        self.inequality_constraints = self.get_inequality_constraints()
         # Check for 'phantom' dimensions that are constrained to a single value.
         self.phantom_indices = []
         for i, x in enumerate(self.max_vector-self.min_vector):
@@ -132,6 +142,8 @@ class DifferentialEvolution(object):
         # I found a power law to be slightly
         # more reliable at low dim. and faster at high dim.
         self.population_size = int(11.69 * self.dimensionality**0.63)
+        # Turn 'huddling' (see def huddle) on or off. Default = off.
+        self.huddling = False
         # Select logging amount. 0=silent, 1=basic, 2=verbose.
         self.verbosity = 2
 
@@ -163,6 +175,10 @@ class DifferentialEvolution(object):
         coordinates.
         '''
         raise NotImplementedError
+        
+    # This function may optionally be implemented in the subclass.
+    def get_inequality_constraints(self):
+        return [None] * self.dimensionality
 
     # The following functions concern population initialisation.
     def generate_random_population(self, mean, range):
@@ -268,6 +284,19 @@ class DifferentialEvolution(object):
         if self.absolute_bounds:
             vector = self.enforce_absolute_bounds(vector)
         return vector
+        
+    def huddle(self):
+        '''
+        A special tournament between the worst-performing vector and the mean vector.
+        The motivation behind this function is that, if the population has begun to
+        encircle a single optimum, huddling will accelerate convergence. If the 
+        population are orbiting several optima, it is unlikely that the mean vector
+        will be selected an no diversity will be lost.
+        '''
+        worst_vector_index = self.get_worst_vector_index()
+        population_stack = numpy.column_stack(self.population)
+        mean = numpy.mean(population_stack, axis=1)
+        self.tournament(worst_vector_index, mean, None)
 
     def dither(self, x, sigma=0.2):
         '''
@@ -288,6 +317,12 @@ class DifferentialEvolution(object):
         Get the index of the best-performing member of the population
         '''
         return min_with_key(xrange(len(self.costs)), key=self.costs.__getitem__)
+        
+    def get_worst_vector_index(self):
+        '''
+        Get the index of the worst-performing member of the population
+        '''
+        return max_with_key(xrange(len(self.costs)), key=self.costs.__getitem__)
 
     def basic_mutation(self, v0, v1, v2, f):
         '''
@@ -500,16 +535,18 @@ class DifferentialEvolution(object):
         trial_cost = self.cost(trial_vector)
         self.function_evaluations += 1
         parent_cost = self.costs[trial_vector_index]
-        printer('The trial vector %s has an associated cost function of %s'%(
-            str(trial_vector), str(trial_cost)))
+        if self.verbosity > 1:
+            printer('The trial vector %s has an associated cost function of %s'%(
+                str(trial_vector), str(trial_cost)))
         # Less than or equal is important to avoid stagnation
         # in quantised landscapes.
         if trial_cost <= parent_cost:
-            printer('The trial cost was found to be lower than the parent cost of %s; therefore, the child vector has replaced its parent.'%(
-                str(parent_cost)))
+            if self.verbosity > 1:
+                printer('The trial cost was found to be lower than the parent cost of %s; therefore, the child vector has replaced its parent.'%(
+                    str(parent_cost)))
             self.population[trial_vector_index] = trial_vector
             self.costs[trial_vector_index] = trial_cost
-        else:
+        elif self.verbosity > 1:
             printer('The trial cost was found to be greater than the parent cost of %s; therefore, the parent vector remains.'%(
                 str(parent_cost)))
         self.tournament_complete_hook(trial_cost, parent_cost, metadata)
@@ -549,6 +586,8 @@ class DifferentialEvolution(object):
             # Tournament-select the next generation
             for j, (trial_vector, metadata) in enumerate(trial_population_with_metadata):
                 self.tournament(j, trial_vector, metadata)
+            if self.huddling:
+                self.huddle()
             self.generation_complete_hook()
             # Check for solution convergence
             convergence = self.convergence_function()
@@ -636,7 +675,7 @@ class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
         It could be used to perform postprocessing or logical (i.e. self-
         adaptive) operations.
         '''
-        if trial_cost < parent_cost:
+        if trial_cost < parent_cost and metadata:
             self.winning_c_vals.append(metadata['c'])
             self.winning_f_randomisers.append(metadata['f_randomisation'])
             self.winning_mutation_schemes.append(metadata['mutation_scheme'])
@@ -647,26 +686,28 @@ class SelfAdaptiveDifferentialEvolution(DifferentialEvolution):
         It could be used to perform postprocessing or logical (i.e. self-
         adaptive) operations.
         '''
-        update_period = 2
-        if not self.generation % update_period and self.generation >= 4 and self.winning_c_vals:
+        update_period = 5
+        if not self.generation % update_period and self.generation >= 10 and self.winning_c_vals:
             mean = numpy.mean(self.winning_c_vals)
             # Fix mean between 0 and 1
             mean = min(1, mean)
             mean = max(0, mean)
             self.c = mean
-            printer('\nc has been adjusted to %s'%(str(self.c)))
             # Modify the roulette wheel for f_randomisers
             self.f_thresholds = self.roulette_wheel(
-                    ['static', 'dither', 'jitter'], self.winning_f_randomisers)
-            printer('f thresholds have been adjusted to %s'%(str(self.f_thresholds)))
+                    ['static', 'dither', 'jitter'], self.winning_f_randomisers) 
             # And for mutation functions
             self.mutation_scheme_thresholds = self.roulette_wheel(
                     ['de_rand_1', 'de_current_to_best_1', 'de_best_1'], self.winning_mutation_schemes)
-            printer('mutation scheme thresholds have been adjusted to %s'%(str(self.mutation_scheme_thresholds)))
             # Remove some system inertia
             self.winning_c_vals = []
             self.winning_f_randomisers = []
             self.winning_mutation_schemes = []
+            # Print any changes
+            if self.verbosity > 1:
+                printer('\nc has been adjusted to %s'%(str(self.c)))
+                printer('f thresholds have been adjusted to %s'%(str(self.f_thresholds)))
+                printer('mutation scheme thresholds have been adjusted to %s'%(str(self.mutation_scheme_thresholds)))
 
     def solution_complete_hook(self, victor):
         '''
