@@ -1,5 +1,6 @@
 import numpy, openpyxl, string, test_functions
-from differential_evolution import DifferentialEvolution, NotConvergedException, SelfAdaptiveDifferentialEvolution
+from differential_evolution import (DifferentialEvolution, NotConvergedException, 
+    SelfAdaptiveDifferentialEvolution)
 ALPHABET = string.uppercase
 
 '''
@@ -9,7 +10,7 @@ running them repeatedly on the test functions defined in test_functions.py.
 The results are exported to Microsoft Excel.
 '''
 
-class TestDifferentialEvolution(SelfAdaptiveDifferentialEvolution):
+class TestDifferentialEvolution(DifferentialEvolution):
     '''
     Modifications to the standard DE class to make it appropriate for tests.
     '''
@@ -18,13 +19,13 @@ class TestDifferentialEvolution(SelfAdaptiveDifferentialEvolution):
         super(TestDifferentialEvolution, self).__init__()
         self.verbosity = 0
         self.convergence_function = 'std'
-        self.convergence_std = 0.0001
+        self.convergence_std = 0.01
         self.mutation_scheme = 'de/rand/1/bin'
         self.base_vector_selection_scheme = 'random'
         self.population_size = 32 #10 * self.dimensionality 
         self.f = 0.9
         self.f_randomisation = 'dither'
-        self.c = 1.0
+        self.c = 0.9
         #self.c_randomisation = 'dither'
         self.max_generations = 1000 * self.population_size
 
@@ -65,9 +66,9 @@ def tests():
         #'base_vector_selection_scheme': ['random', 'permuted', 'offset'],
         #'f_randomisation': ['static', 'dither', 'jitter'],
         #'c_randomisation': ['dither'],
-        'huddling': [False, True]
+        'huddling': [False, False]
     }
-    repeats = 10
+    repeats = 5
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
     wb_name = 'DE_Tests.xlsx'
@@ -83,7 +84,7 @@ def tests():
     # Run the tests
     for d in dimensions:
         unimodal_problems = {
-            #'sphere': test_functions.SphereDifferentialEvolution(d=d),
+            'sphere': test_functions.SphereDifferentialEvolution(d=d),
             #'hyper-ellipsoid': test_functions.HyperEllipsoidDifferentialEvolution(d=d),
             #'rozenbrock': test_functions.RozenbrockDifferentialEvolution(d=d),
             #'schwefel-ridge': test_functions.SchwefelRidgeDifferentialEvolution(d=d),
@@ -107,7 +108,7 @@ def tests():
             #'schwefel': test_functions.SchwefelDifferentialEvolution(d=d), # NONZERO TARGET
             #'michalewicz': test_functions.MichalewiczDifferentialEvolution(d=d),
             #'rana': test_functions.RanaDifferentialEvolution(d=d)  # NONZERO TARGET
-            'beam': test_functions.BeamDifferentialEvolution(d=d)  # NONZERO TARGET
+            #'beam': test_functions.BeamDifferentialEvolution(d=d)  # NONZERO TARGET
         }
         all_problems = dict(unimodal_problems.items() +
             multimodal_problems.items() + bound_problems.items())
