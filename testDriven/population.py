@@ -13,17 +13,24 @@ class Member(object):
         self.cost = np.inf
         self.vector = np.asarray(vector)
         
-    def constrain(self, minVector, maxVector, bind=True, sequential=False):
+    def constrain(self, minVector=None, maxVector=None, sequential=False, bind=True):
         """
         Adjust a member's vector to comply with bounding/sequential constraints
         """
-        vector = self.vector
+        v = self.vector
         if bind:
-            vector = numpy.maximum(minVector, vector)
-            vector = numpy.minimum(maxVector, vector)
+            if minVector is not None:
+                v = np.maximum(minVector, v)
+            if maxVector is not None:
+                v = np.minimum(maxVector, v)
         if sequential:
-            vector = np.sort(vector)
-        self.vector = vector
+            v = np.sort(v)
+        self.vector = v
+        
+    def __str__(self):
+        vector = np.around(self.vector, 2)
+        cost = np.around(self.cost, 2)
+        return '%s (cost %s)'%(vector, cost)
         
 
 class Population(object):
@@ -116,4 +123,8 @@ class Population(object):
         
     def getVectorsByIndices(self, *args):
         return [self.members[i].vector for i in args]
+        
+    def __str__(self):
+        return 'Population: size=%s, mean=%s, std=%s'%(self.size,
+            self.mean, self.standardDeviation)
         

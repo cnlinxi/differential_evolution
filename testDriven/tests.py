@@ -2,9 +2,12 @@ import unittest
 import numpy as np
 import copy
 from population import Population, Member
+import testFunctions
 
 class TestPopulation(unittest.TestCase):
-
+    """
+    Tests for the population class.
+    """
     def setUp(self):
         # Define a large population to enable accurate
         # checking of statistical parameters
@@ -57,6 +60,14 @@ class TestPopulation(unittest.TestCase):
         membersChanged = prevGen != newGen
         sameLength = len(prevGen) == len(newGen)
         self.assertTrue(membersChanged and sameLength)
+        
+    def test_constrain(self):
+        member = Member([10, 6, 3])
+        min = [4, 4, 4]
+        max = [7, 7, 7]
+        member.constrain(min, max, sequential=True)
+        self.assertTrue(np.array_equal(member.vector, [4, 6, 7]))
+    
         
 if __name__ == '__main__':
     unittest.main()

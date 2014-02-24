@@ -24,9 +24,8 @@ def printer(text, output='stderr'):
         sys.__stderr__.write(str(text) + os.linesep)
         sys.__stderr__.flush()
         
-def mapFunc(f, args):
-    return map(f, args)
-        
+LOW_CR = 0.1
+HIGH_CR = 0.9
 
 class DifferentialEvolution(object):
     """
@@ -39,11 +38,11 @@ class DifferentialEvolution(object):
     'Differential Evolution - A Practical Approach to Global Optimisation'.
     """
     
-    def __init__(self, costFunction, bounds, populationSize=None, f=None, cr=0.9, 
-        mutator='de/rand/1/bin', baseVectorSelector='random', fRandomiser='randomInterval', 
-        crRandomiser='static', maxGenerations=2000, convergenceFunction='std',
+    def __init__(self, costFunction, bounds, populationSize=None, f=None, cr=None, 
+        mutator='de/rand/1/bin', baseVectorSelector='permuted', fRandomiser='randomInterval', 
+        crRandomiser='static', maxGenerations=1000, convergenceFunction='std',
         convergenceStd=0.01, vtr=None, absoluteBounds=False, sequential=False, 
-        verbosity=0, huddling=False, multiprocessing=True):
+        verbosity=1, huddling=False, multiprocessing=False):
         """
         Specify the problem parameters and initialise the population.
         """
@@ -90,20 +89,28 @@ class DifferentialEvolution(object):
         if not populationSize:
             populationSize = 5 * (self.dimensionality - len(self.phantomIndices))
             self.populationSize = min(populationSize, 40)
+        else:
+            self.populationSize = populationSize
         # Selection of base vector scheme
         self.baseVectorSelector = baseVectorSelector
         self.mutator = mutator
         self.convergenceFunction = convergenceFunction
         # Mutation scaling factor. Recommended 0.5 < f < 1.2
         if f==None and fRandomiser != 'randomInterval':
-            raise Exception('The F randomiser "%s" requires an explicit value for f.'%(
-                fRandomiser))
-        self.f = f
+            self.f = 0.9
+        else:
+            self.f = f
+        if f and fRandomiser=='randomInterval':
+            self.fRandomiser = 'dither'
         self.fRandomiser = fRandomiser
         # Crossover factor (see def crossover)
         self.cr = cr
         # Select c distribution
-        self.crRandomiser = crRandomiser
+        if cr:
+            self.crRandomiser = crRandomiser
+        else:
+            self.crRandomiser = self.selfAdaptiveCr
+            self.highCrProbability = 0.5
         # Number of generations before the program terminates regardless
         # of convergence
         self.maxGenerations = maxGenerations
@@ -127,6 +134,7 @@ class DifferentialEvolution(object):
         self.population = population.Population(
             self.populationSize, (self.minVector, self.maxVector), self.sequential)
         
+        
     def _stringToFunctionIfString(self, attr, dictionary):
         """
         Utility to convert a string to a function by lookup in a
@@ -149,7 +157,7 @@ class DifferentialEvolution(object):
         """
         randoms = [0] # Arbitrary initialisation to imitate a do-while loop
         while any(randoms[i] == i for i in randoms):
-            randoms = np.random.randint(self.population.size, size=self.population.size)
+            randoms = np.random.randint(self.populationSize, size=self.populationSize)
         return randoms
 
     def permutedBaseVectorSelection(self):
@@ -157,7 +165,7 @@ class DifferentialEvolution(object):
         Base vectors are selected randomly but with dependent probability.
         Each vector is used as v0 only once per generation.
         """
-        randoms = np.random.permutation(self.population.size)
+        randoms = np.random.permutation(self.populationSize)
         while any(randoms[i] == i for i in randoms):
             np.random.shuffle(randoms)
         return randoms
@@ -167,8 +175,8 @@ class DifferentialEvolution(object):
         Base vectors are selected at a random but unchanging offset from the
         parent vector.
         """
-        randomOffset = np.random.randint(self.population.size)
-        return [(i + randomOffset) % self.population.size for i in xrange(self.population.size)]
+        randomOffset = np.random.randint(self.populationSize)
+        return [(i + randomOffset) % self.populationSize for i in xrange(self.populationSize)]
         
     def dither(self, x, sigma=0.2):
         """
@@ -184,11 +192,21 @@ class DifferentialEvolution(object):
         """
         return np.random.normal(x, sigma, self.population.dimensionality)
         
-    def fInRandomInterval(self, x, lowerBound=0.5, upperBound=1.0):
+    def fInRandomInterval(self, x):
         """
-        Returns a random scalar between lowerBound and upperBound.
+        Returns a random scalar between 0.5 and 1.
         """
-        return 0.5 + np.random.random()/2.0 
+        return 0.5 + np.random.rand()/2.0 
+        
+    def selfAdaptiveCr(self, cr):
+        """
+        Choose cr from a roulette wheel
+        """
+        rand = np.random.rand()
+        if rand > self.highCrProbability:
+            return LOW_CR
+        else:
+            return HIGH_CR
         
     # The following functions concern mutation operations.
     # They are self-adaptive ready, but there is no self-adaptive logic here.
@@ -217,7 +235,7 @@ class DifferentialEvolution(object):
         """
         'Classic' DE mutation - combine three random vectors.
         """
-        r1, r2 = self._nmeri(2, self.population.size, notEqualTo=[i, r0])
+        r1, r2 = self._nmeri(2, self.populationSize, notEqualTo=[i, r0])
         v0, v1, v2 = self.population.getVectorsByIndices(r0, r1, r2)
         return self.basicMutation(v0, v1, v2, f)
 
@@ -226,8 +244,8 @@ class DifferentialEvolution(object):
         Variation on classic DE, using the best-so-far vector as v0.
         r0 is allowed as an argument for consistency, but is not used.
         """
-        rBest = self.population.bestVectorIndex()
-        r1, r2 = self._nmeri(2, self.population.size, notEqualTo=[i, rBest])
+        rBest = self.population.bestVectorIndex
+        r1, r2 = self._nmeri(2, self.populationSize, notEqualTo=[i, rBest])
         v0, v1, v2 = self.population.getVectorsByIndices(rBest, r1, r2)
         return self.basicMutation(v0, v1, v2, f)
 
@@ -235,10 +253,10 @@ class DifferentialEvolution(object):
         """
         Hybrid of de/rand/1 and de/best/1. r0 is again ignored.
         """
-        rBest = self.population.bestVectorIndex()
+        rBest = self.population.bestVectorIndex
         vi, vBest = self.population.getVectorsByIndices(i, rBest)
         currentToBest = self.basicMutation(vi, vBest, vi, f)
-        r1, r2 = self._nmeri(2, self.population.size, notEqualTo=[i, rBest])
+        r1, r2 = self._nmeri(2, self.populationSize, notEqualTo=[i, rBest])
         v1, v2 = self.population.getVectorsByIndices(r1, r2)
         return self.basicMutation(currentToBest, v1, v2, f)
 
@@ -247,7 +265,7 @@ class DifferentialEvolution(object):
         Like de/rand/1, but adds two random scaled vectors.
         Modified from Qin and Suganthan by using f/2.
         """
-        r1, r2, r3, r4 = self._nmeri(4, self.population.size, notEqualTo=[i, r0])
+        r1, r2, r3, r4 = self._nmeri(4, self.populationSize, notEqualTo=[i, r0])
         v0, v1, v2 = self.population.getVectorsByIndices(r0, r1, r2)
         mutant = self.basicMutation(v0, v1, v2, f*0.5)
         v3, v4 = self.population.getVectorsByIndices(r3, r4)
@@ -258,8 +276,8 @@ class DifferentialEvolution(object):
         Like de/best/1, but adds two random scaled vectors.
         Modified from Qin and Suganthan by using f/2.
         """
-        rBest = self.population.bestVectorIndex()
-        r1, r2, r3, r4 = self._nmeri(4, self.population.size, notEqualTo=[i, r0])
+        rBest = self.population.bestVectorIndex
+        r1, r2, r3, r4 = self._nmeri(4, self.populationSize, notEqualTo=[i, r0])
         v0, v1, v2 = self.population.getVectorsByIndices(rBest, r1, r2)
         mutant = self.basicMutation(v0, v1, v2, f*0.5)
         v3, v4 = self.population.getVectorsByIndices(r3, r4)
@@ -275,19 +293,17 @@ class DifferentialEvolution(object):
         else:
             return self.deBest1(i, f, r0)
         
-    def mutation(self):
+    def mutation(self, i, baseVectorIndex):
         """
-        Mutate all vectors in the population.
-        Yields an iterator of mutants with metadata.
+        Mutate a vector in the population.
         """
-        baseVectorIndices = self.baseVectorSelector()
-        for i in xrange(self.population.size):
-            f = self.fRandomiser(self.f)
-            mutant = population.Member(self.mutator(i, f, baseVectorIndices[i]))
-            mutant.f = f
-            yield mutant
+        f = self.fRandomiser(self.f)
+        vector = self.mutator(i, f, baseVectorIndex)
+        mutant = population.Member(vector)
+        mutant.f = f
+        return mutant
 
-    def crossover(self, v1, v2):
+    def crossover(self, v1, mutantMember):
         """
         Creates a trial vector by crossing v1 with v2 to create v3.
         The probability of a v2 element being selected over a v1 element is c,
@@ -295,19 +311,15 @@ class DifferentialEvolution(object):
         at least one mutant value is chosen in the crossover.
         """
         cr = self.crRandomiser(self.cr)
-        v3 = []
-        iRand = np.random.randint(self.dimensionality)
-        while iRand in self.phantomIndices:
-            iRand = np.random.randint(self.dimensionality)
-        randomArray = np.random.rand(self.dimensionality)
-        for i, randomNumber in enumerate(randomArray):
-            if randomNumber > cr and i != iRand:
-                v3.append(v1[i])
-            else:
-                v3.append(v2[i])
-        trialMember = population.Member(v3)
-        trialMember.cr = cr
-        return trialMember
+        i_rand = np.random.randint(self.dimensionality)
+        while i_rand in self.phantomIndices:
+            i_rand = np.random.randint(self.dimensionality)
+        random_array = np.random.rand(self.dimensionality)
+        for i, random_number in enumerate(random_array):
+            if random_number > cr and i != i_rand:
+                mutantMember.vector[i] = v1[i]
+        mutantMember.cr = cr
+        return mutantMember
         
     def generateTrialPopulation(self):
         """
@@ -315,21 +327,33 @@ class DifferentialEvolution(object):
         using mutation and crossover operations.
         It returns a trial population as an iterator.
         """
-        mutants = self.mutation()
-        for i, mutant in enumerate(mutants):
-            trialMember = self.crossover(self.population.members[i].vector, mutant.vector)
+        trialMembers = []
+        baseVectorIndices = self.baseVectorSelector()
+        for i, baseVectorIndex in enumerate(baseVectorIndices):
+            trialMember = self.mutation(i, baseVectorIndex)
+            trialMember = self.crossover(self.population.members[i].vector, trialMember)
             trialMember.constrain(self.minVector, self.maxVector, 
-                self.absoluteBounds, self.sequential)
-            yield trialMember
+                self.sequential, self.absoluteBounds)
+            trialMembers.append(trialMember)
+        return trialMembers
             
     def updatePopulation(self, trialPopulation, costs):
         """
         Replace vectors in the population whose costs are higher than the trial vectors.
         """
+        if self.huddling:
+            huddleMember = trialPopulation.pop(-1)
+            huddleMember.cost = costs.pop(-1)
+            wvi = self.population.worstVectorIndex
+            if huddleMember.cost < self.population.members[wvi].cost:
+                self.population.members[wvi] = huddleMember
         for i, trialMember in enumerate(trialPopulation):
             trialMember.cost = costs[i]
-            if trialMember.cost < self.population.members[i].cost:
+            # Less than or equal is important to avoid stagnation
+            # in quantised landscapes.
+            if trialMember.cost <= self.population.members[i].cost:
                 self.population.members[i] = trialMember
+                self.successfulCr.append(trialMember.cr)
                 
     # One of these functions is called at the end of each generation. The
     # convergence functions given here are selectable termination criteria.
@@ -362,7 +386,7 @@ class DifferentialEvolution(object):
         printer('\nInitial solution parameters:\n')
         printer('Scaling factor:  \t%s'%(self.f))
         printer('Crossover factor:\t%s'%(self.cr))
-        printer('Population size: \t%s\n'%(self.population.size))
+        printer('Population size: \t%s\n'%(self.populationSize))
 
     def logSolution(self, generation):
         """
@@ -391,19 +415,22 @@ class DifferentialEvolution(object):
             pool = Pool()
             mapper = pool.map
         else:
-            mapper = mapFunc
+            mapper = map
         costs = mapper(self.cost, self.population.vectors)
         self.functionEvaluations = self.populationSize
+        self.successfulCr = []
         for i in xrange(self.maxGenerations):
             self.generation = i+1
             # If logging, show output
             if self.verbosity > 1:
                 self.logSolution(self.generation)
             # Evolve (mutate/crossover) the next generation
-            trialPopulation = list(self.generateTrialPopulation())
+            trialPopulation = self.generateTrialPopulation()
+            if self.huddling:
+                trialPopulation.append(population.Member(self.population.mean))
             # Evaluate the next generation
             costs = mapper(self.cost, [member.vector for member in trialPopulation])
-            self.functionEvaluations += self.populationSize
+            self.functionEvaluations += len(trialPopulation)
             # Insert improvements
             self.updatePopulation(trialPopulation, costs)
             # Check for solution convergence
@@ -411,6 +438,56 @@ class DifferentialEvolution(object):
             if convergence:
                 # Return the final population, with some metadata.
                 return self.population, self.functionEvaluations, self.generation
+            if self.crRandomiser == self.selfAdaptiveCr and self.generation % 2 == 0 and self.generation > 5:
+                if self.successfulCr:
+                    self.highCrProbability = sorted([0.05, self.successfulCr.count(HIGH_CR) / float(len(self.successfulCr)), 0.95])[1]
+                self.successfulCr = []
         # If we get to here, we haven't achieved convergence. Raise an error.
-        raise NotConvergedException('The solution did not converge', self.population.bestVector)
+        raise NotConvergedException('The solution did not converge', self.population.bestVector.cost)
+        
+        
+class DifferentialEvolution2(DifferentialEvolution):
+    """
+    As above, but with a modular cost function API,
+    (i.e. cost is a file).
+    If the keyword argument 'dimensions' is passed,
+    the code will look for a 'getBounds' method which
+    accepts a dimensions parameter. Otherwise, the
+    code will look for a 'bounds' attribute. 
+    Similarly, a 'vtr' attribute or 'getVtr(d)'
+    function may be used to specify the value to
+    reach.
+    """
+    def __init__(self, costModule, **kwargs):
+        kwargs['costFunction'] = costModule.cost
+        if 'dimensions' in kwargs:
+            d = kwargs.pop('dimensions')
+            kwargs['bounds'] = costModule.getBounds(d)
+        else:
+            kwargs['bounds'] = costModule.bounds
+        if hasattr(costModule, 'vtr'):
+            kwargs['vtr'] = costModule.vtr
+            kwargs['convergenceFunction'] = 'vtr'
+        elif 'dimensions' in kwargs:
+            try:
+                kwargs['vtr'] = costModule.getVtr(d)
+                kwargs['convergenceFunction'] = 'vtr'
+            except AttributeError:
+                kwargs['convergenceFunction'] = 'std'
+        else:
+            kwargs['convergenceFunction'] = 'std'
+        try:
+            kwargs['convergenceStd'] = costModule.convergenceStd
+        except AttributeError:
+            pass
+        try:
+            kwargs['absoluteBounds'] = costModule.absoluteBounds
+        except AttributeError:
+            pass
+        try:
+            kwargs['sequential'] = costModule.sequential
+        except AttributeError:
+            pass
+        super(DifferentialEvolution2, self).__init__(**kwargs)
+        
         
