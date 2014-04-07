@@ -42,7 +42,7 @@ class DifferentialEvolution(object):
         mutator='de/rand/1/bin', baseVectorSelector='permuted', fRandomiser='randomInterval', 
         crRandomiser='static', maxGenerations=1000, convergenceFunction='std',
         convergenceStd=0.01, vtr=None, absoluteBounds=False, sequential=False, 
-        verbosity=1, huddling=False, multiprocessing=False):
+        verbosity=1, huddling=False, multiprocessing=False, outputLoc='stderr'):
         """
         Specify the problem parameters and initialise the population.
         """
@@ -126,7 +126,10 @@ class DifferentialEvolution(object):
         self.absoluteBounds = absoluteBounds
         # Turn 'huddling' (see def huddle) on or off. Default = off.
         self.huddling = huddling
-        # Select logging amount. 0=silent, 1=basic, 2=verbose.
+        # Select logging amount. 0=silent, 1=basic, 2=verbose, 3=verbose with CSV file.
+        if verbosity > 2:
+            run_identifier = 'DE_Tests_%s'%(time.strftime('%d-%m-%Y__%H:%M'))
+            self.csv = open(os.path.join('csvs', run_identifier + '.csv'))
         self.verbosity = verbosity
         self.multiprocessing = multiprocessing
         self.sequential = sequential
@@ -325,7 +328,7 @@ class DifferentialEvolution(object):
         """
         This function creates a trial population from an existing population
         using mutation and crossover operations.
-        It returns a trial population as an iterator.
+        It returns a trial population.
         """
         trialMembers = []
         baseVectorIndices = self.baseVectorSelector()
@@ -380,13 +383,13 @@ class DifferentialEvolution(object):
         """
         currentTime = datetime.datetime.now()
         timeString = currentTime.strftime("%A, %d %B, %Y %I:%M%p")
-        printer('\n2014 Blake Hemingway')
-        printer('The University of Sheffield')
-        printer('\nRun started on %s'%(timeString))
-        printer('\nInitial solution parameters:\n')
-        printer('Scaling factor:  \t%s'%(self.f))
-        printer('Crossover factor:\t%s'%(self.cr))
-        printer('Population size: \t%s\n'%(self.populationSize))
+        printer('\n2014 Blake Hemingway', outputLoc)
+        printer('The University of Sheffield', outputLoc)
+        printer('\nRun started on %s'%(timeString), outputLoc)
+        printer('\nInitial solution parameters:\n', outputLoc)
+        printer('Scaling factor:  \t%s'%(self.f), outputLoc)
+        printer('Crossover factor:\t%s'%(self.cr), outputLoc)
+        printer('Population size: \t%s\n'%(self.populationSize), outputLoc)
 
     def logSolution(self, generation):
         """
@@ -395,12 +398,15 @@ class DifferentialEvolution(object):
         'verbose_logging' parameter is set
         """
         best = np.round(min(self.population.costs), self.decimalPrecision)
-        printer('\nAt generation %s:'%(generation))
-        printer('Mean values: %s'%(str(self.population.mean)))
-        printer('std values: %s'%(str(self.population.standardDeviation)))
-        printer('Best-so-far function value: %s\n'%(best))
+        printer('\nAt generation %s:'%(generation), outputLoc)
+        printer('Mean values: %s'%(str(self.population.mean)), outputLoc)
+        printer('std values: %s'%(str(self.population.standardDeviation)), outputLoc)
+        printer('Best-so-far function value: %s\n'%(best), outputLoc)
 
     def optimise(self):
+        """
+        The main method. Call this method to run the optimisation.
+        """
         # Get functions corresponding to strings by using them as keys in lookup
         self._stringToFunctionIfString('baseVectorSelector', self.baseVectorSelectors)
         self._stringToFunctionIfString('mutator', self.mutators)
@@ -438,7 +444,8 @@ class DifferentialEvolution(object):
             if convergence:
                 # Return the final population, with some metadata.
                 return self.population, self.functionEvaluations, self.generation
-            if self.crRandomiser == self.selfAdaptiveCr and self.generation % 2 == 0 and self.generation > 5:
+            # Otherwise, run some self-adaptive logic
+            elif self.crRandomiser == self.selfAdaptiveCr and self.generation % 2 == 0 and self.generation > 5:
                 if self.successfulCr:
                     self.highCrProbability = sorted([0.05, self.successfulCr.count(HIGH_CR) / float(len(self.successfulCr)), 0.95])[1]
                 self.successfulCr = []
