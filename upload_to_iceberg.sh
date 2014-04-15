@@ -1,1 +1,1 @@
-rsync -rtvz /Users/Blake/Dev/fyp iceberg:/home/mea09bh
+rsync --exclude='.git/' -rtvz /Users/Blake/Dev/fyp iceberg:/home/mea09bh
