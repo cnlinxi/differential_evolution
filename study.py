@@ -20,8 +20,9 @@ The results are exported to Microsoft Excel.
 
 
 def study():
+    f = open('study.out', 'w')
     algorithms = [DERand1Bin, jDE, JADE, SaDE]
-    repeats = 30
+    repeats = 50
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
     wb_name = 'DE_Tests_%s.xlsx'%(time.strftime('%d-%m-%Y__%H:%M'))
@@ -55,8 +56,9 @@ def study():
                 de = DE(costFile=problem, uuid=uuid, valueToReach=1e-6, maxFunctionEvals=mfe)
                 run_name = '- Run %s with %s'%(i+1, problem_id)
                 print run_name
-                de.optimise()
-                #sys.exit()
+                bestVector = de.optimise()
+                if sys.argv[1] == "--file":
+                    f.write('%s\n%s\n\n'%(run_name, bestVector))
                 # Dump convergence history
                 with open(uuid + '.csv', 'rb') as csvfile:
                     reader = csv.reader(csvfile)

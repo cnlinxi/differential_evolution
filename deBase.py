@@ -189,7 +189,7 @@ class DERand1Bin(object):
             trialPopulation = self.assignCosts(trialPopulation)
             # Insert improvements
             self.selectNextGeneration(trialPopulation)
-        print self.population.bestVector
+        return self.population.bestVector
         
 
 class DECurrentToPBest1Bin(DERand1Bin):
