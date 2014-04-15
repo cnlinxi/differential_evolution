@@ -30,8 +30,9 @@ class ParallelCostMixin(object):
         # A pool will, with no arguments, contain 'cpu_count' workers.
         # The argument was included to be more explicit.
         self.pool = Pool(cpus)
-        super(ParallelCostMixin, self).optimise(*args, **kwargs)
+        bestVector = super(ParallelCostMixin, self).optimise(*args, **kwargs)
         self.pool.terminate()
+        return bestVector
         
 
 class LoggingMixin(object):

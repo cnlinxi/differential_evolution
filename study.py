@@ -10,6 +10,7 @@ import time
 import os
 import csv
 import sys
+import multiprocessing
 
 """
 This file tests the various options of the DifferentialEvolution class by
@@ -20,7 +21,8 @@ The results are exported to Microsoft Excel.
 
 
 def study():
-    f = open('study.out', 'w')
+    if "--file" in sys.argv:
+        f = open('study.out', 'w')
     algorithms = [DERand1Bin, jDE, JADE, SaDE]
     repeats = 50
     # Initialise Excel workbook
@@ -42,8 +44,14 @@ def study():
     for problem_descr, problem in sorted(problems.iteritems()):
         print 'Testing %s'%(problem_descr)
         for Algorithm in algorithms:
-            class DE(ValueToReachMixin, LoggingMixin, Algorithm):
-                pass
+            if "--parallel" in sys.argv:
+                class DE(ParallelCostMixin, ValueToReachMixin, LoggingMixin, Algorithm):
+                    pass
+                if "--file" in sys.argv:
+                    f.write('\nParallel Processing on %s CPUs\n\n'%(multiprocessing.cpu_count()))
+            else:
+                class DE(ValueToReachMixin, LoggingMixin, Algorithm):
+                    pass
             problem_id = '%s_%s'%(problem_descr, Algorithm.__name__)
             worksheets[problem_id] = wb.create_sheet()
             ws = worksheets[problem_id]
@@ -57,7 +65,8 @@ def study():
                 run_name = '- Run %s with %s'%(i+1, problem_id)
                 print run_name
                 bestVector = de.optimise()
-                if sys.argv[1] == "--file":
+                print bestVector
+                if "--file" in sys.argv:
                     f.write('%s\n%s\n\n'%(run_name, bestVector))
                 # Dump convergence history
                 with open(uuid + '.csv', 'rb') as csvfile:
