@@ -3,15 +3,15 @@ This file describes a population, as used in a
 general class of evolutionary algorithm (EA).
 """
 
-import numpy as np
+import numpy
 
 class Member(object):
     """
     A member of a population.
     """
     def __init__(self, vector):
-        self.cost = np.inf
-        self.vector = np.asarray(vector)
+        self.cost = numpy.inf
+        self.vector = numpy.asarray(vector)
         
     def constrain(self, minVector=None, maxVector=None, sequential=False, bind=True):
         """
@@ -20,16 +20,16 @@ class Member(object):
         v = self.vector
         if bind:
             if minVector is not None:
-                v = np.maximum(minVector, v)
+                v = numpy.maximum(minVector, v)
             if maxVector is not None:
-                v = np.minimum(maxVector, v)
+                v = numpy.minimum(maxVector, v)
         if sequential:
-            v = np.sort(v)
+            v = numpy.sort(v)
         self.vector = v
         
     def __str__(self):
-        vector = np.around(self.vector, 2)
-        cost = np.around(self.cost, 2)
+        vector = numpy.around(self.vector, 2)
+        cost = numpy.around(self.cost, 5)
         return '%s (cost %s)'%(vector, cost)
         
 
@@ -38,31 +38,37 @@ class Population(object):
     A group of Members, associated with statistical parameters such as
     mean and standard deviation, and methods to (re)generate the Members.
     """
-    def __init__(self, size, boundaries, sequential=False):
+    def __init__(self, size=None, boundaries=None, sequential=False, members=None):
         """
         This function creates a randomly-distributed initial population.
         Halton or Gaussian distributions could also be used. If the population
         is sequential, each vector will be sorted low-high.
+        Alternatively, 'members' can be specified directly.
         """
-        self.boundaries = boundaries
-        self.sequential = sequential
-        minVector, maxVector = self.boundaries
-        assert len(minVector) == len(maxVector)
-        mean = np.mean(np.column_stack((minVector, maxVector)), axis=1)
-        range = maxVector - minVector
-        # A blank container to hold the population whilst constructing
-        self.members = [] 
-        for i in xrange(size):
-            # A random vector in the range -0.5 - 0.5
-            vector = np.random.rand(len(minVector)) - 0.5
-            # Manipulate it so that it meets the specified min/max conditions
-            vector *= range
-            vector += mean
-            # Enforce sequential constraints if applicable
-            if sequential:
-                vector = np.sort(vector)
-            # Add the fully-constructed vector to the population
-            self.members.append(Member(vector))
+        if members:
+            self.members=members
+        else:
+            self.boundaries = boundaries
+            self.sequential = sequential
+            minVector, maxVector = self.boundaries
+            assert len(minVector) == len(maxVector)
+            minVector = numpy.asarray(minVector)
+            maxVector = numpy.asarray(maxVector)
+            mean = numpy.mean(numpy.column_stack((minVector, maxVector)), axis=1)
+            range = maxVector - minVector
+            # A blank container to hold the population whilst constructing
+            self.members = [] 
+            for i in xrange(size):
+                # A random vector in the range -0.5 - 0.5
+                vector = numpy.random.rand(len(minVector)) - 0.5
+                # Manipulate it so that it meets the specified min/max conditions
+                vector *= range
+                vector += mean
+                # Enforce sequential constraints if applicable
+                if sequential:
+                    vector = numpy.sort(vector)
+                # Add the fully-constructed vector to the population
+                self.members.append(Member(vector))
         
     @property
     def size(self):
@@ -78,8 +84,8 @@ class Population(object):
         
     @property
     def vectorArray(self):
-        vectors = np.array(self.vectors)
-        return np.column_stack(vectors)
+        vectors = numpy.array(self.vectors)
+        return numpy.column_stack(vectors)
     
     @property  
     def costs(self):
@@ -87,11 +93,11 @@ class Population(object):
         
     @property
     def mean(self):
-        return np.mean(self.vectorArray, axis=1)
+        return numpy.mean(self.vectorArray, axis=1)
         
     @property
     def standardDeviation(self):
-        return np.std(self.vectorArray, axis=1)
+        return numpy.std(self.vectorArray, axis=1)
 
     @property
     def bestVectorIndex(self): 

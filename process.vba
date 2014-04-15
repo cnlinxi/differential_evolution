@@ -106,7 +106,8 @@ Sub GroupSheets(ByVal repeats As Integer)
     For i = 1 To Worksheets.Count
         titlearray = Split(Worksheets(i).Name, "_")
         If UBound(titlearray) > 0 Then
-            x = titlearray(0) & "_" & titlearray(1)
+            x = titlearray(0)
+            Debug.Print x
             If IsInArray(x, wsarray) = False Then
                 wsarray(j) = x
                 j = j + 1

@@ -1,2 +1,1 @@
-from . import (ackley, beam, griewangk, hyperellipsoid, neumaier, rana,
-    rastrigin, rozenbrock, salomon, schwefel, schwefelridge, sphere, whitley)
+from . import (ackley10d, ackley30d, rosenbrock10d, rosenbrock30d, sphere10d, sphere30d)
