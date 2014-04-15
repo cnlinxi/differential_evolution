@@ -121,11 +121,9 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         """
         for i, strategy in enumerate(self.strategies):
             flattenedCr = list(itertools.chain.from_iterable(strategy['crMemory']))
-            try:
+            if flattenedCr:
+                # Skip this step if there were no successes
                 self.strategies[i]['cr'] = numpy.median(flattenedCr)
-            except:
-                # Pass if there were no successful cr values.
-                pass
         
     def generateTrialMember(self, i):
         """
@@ -160,7 +158,6 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         n = len(self.strategies)
         if self.generation > self.lp:
             self._computeCrMedians()
-        if self.generation > self.lp:
             self._updateStrategyProbabilities()
         self.sampledStrategies = self._stochasticUniversalSampleStrategies()
         # Augment all memories

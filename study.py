@@ -3,6 +3,7 @@ from openpyxl.cell import get_column_letter
 from deBase import DERand1Bin, DECurrentToPBest1Bin
 from jade import JADE
 from sade import SaDE
+from jde import jDE
 from mixins import LoggingMixin, ParallelCostMixin, ValueToReachMixin
 ALPHABET = string.uppercase
 import time
@@ -19,8 +20,8 @@ The results are exported to Microsoft Excel.
 
 
 def study():
-    algorithms = [SaDE]#[DERand1Bin, DECurrentToPBest1Bin, JADE, SaDE, ]
-    repeats = 1
+    algorithms = [DERand1Bin, jDE, JADE, SaDE]
+    repeats = 30
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
     wb_name = 'DE_Tests_%s.xlsx'%(time.strftime('%d-%m-%Y__%H:%M'))
@@ -31,11 +32,11 @@ def study():
         'f1-30d': testFunctions.sphere30d,
         'f2-10d': testFunctions.rosenbrock10d,
         'f2-30d': testFunctions.rosenbrock30d,
-        #'f3-10d': testFunctions.step10d,
-        #'f3-30d': testFunctions.step30d,
+        'f3-10d': testFunctions.step10d,
+        'f3-30d': testFunctions.step30d,
         'f4-10d': testFunctions.ackley10d,
         'f4-30d': testFunctions.ackley30d,
-        #'f5-10d': testFunctions.shekel10d,
+        'f5-10d': testFunctions.shekel10d,
     }
     for problem_descr, problem in sorted(problems.iteritems()):
         print 'Testing %s'%(problem_descr)
@@ -50,7 +51,6 @@ def study():
             for i in xrange(repeats):
                 # Run the optimisation
                 uuid = str(problem_id) + str(i)
-                
                 mfe = 100000 if '30d' in problem_id else 50000
                 de = DE(costFile=problem, uuid=uuid, valueToReach=1e-6, maxFunctionEvals=mfe)
                 run_name = '- Run %s with %s'%(i+1, problem_id)

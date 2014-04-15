@@ -33,6 +33,9 @@ class DERand1Bin(object):
         - cost(x): returning a scalar when passed a single vector argument x
         - getBounds: returning a tuple, length 2, of the initialisation region.
         
+        A Boolean 'absoluteBounds' may also be set. If this is True, mutations outside
+        the initialisation region will be banned.
+        
         Control parameters np (population size), f (mutation scaling factor) and
         cr (crossover ratio) can be specified, or left as the 'standard' values
         as stated by Qin & Suganthan (np) and Storn (cr, f).
@@ -42,12 +45,18 @@ class DERand1Bin(object):
         # Get cost function
         self.cost = costFile.cost
         # Get problem boundaries
-        minVector, maxVector = costFile.getBounds()
+        self.minVector, self.maxVector = costFile.getBounds()
         # Infer the problem dimensionality from one of these (arbitrarily)
-        self.d = len(minVector)
+        self.d = len(self.minVector)
         # Initialise population randomly within the boundaries.
         self.population = population.Population(
-            size=np, boundaries=(minVector, maxVector))
+            size=np, boundaries=(self.minVector, self.maxVector))
+        # Are mutations outside these boundaries banned?
+        try:
+            self.absoluteBounds = costFile.absoluteBounds
+        except AttributeError:
+            self.absoluteBounds = False
+        #print self.absoluteBounds
         # Number of function evaluations before the program terminates 
         self.maxFunctionEvals = maxFunctionEvals
         # The number of function evaluations now is, obviously, 0.
@@ -115,7 +124,12 @@ class DERand1Bin(object):
         Create a trial population (size np) from an existing population.
         Return a population object.
         """
-        trialMembers = [self.generateTrialMember(i) for i in xrange(np)]
+        trialMembers = []
+        for i in xrange(np):
+            trialMember = self.generateTrialMember(i)
+            if self.absoluteBounds:
+                trialMember.constrain(self.minVector, self.maxVector)
+            trialMembers.append(trialMember)
         return population.Population(members=trialMembers)
         
     def assignCosts(self, population):

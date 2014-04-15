@@ -1,10 +1,9 @@
 from multiprocessing import Pool, cpu_count
 import csv
-from collections import deque
 
 """
-Mixins can be included with any DE algorithm in this suite to modify
-or extend their functionality in some way.
+Mixins can be included with any DE algorithm in this suite
+to modify or extend their functionality in some way.
 """
 
 
