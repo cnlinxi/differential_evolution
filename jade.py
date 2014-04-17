@@ -1,3 +1,4 @@
+import population
 from deBase import DECurrentToPBest1Bin
 from collections import deque
 import numpy
@@ -57,7 +58,7 @@ class DECurrentToPBest1BinWithArchive(DECurrentToPBest1Bin):
         This function is extended to insert surpassed parents into the archive.
         """
         self.archive.append(self.population.members[i])
-        super(ArchiveMixin, self).trialMemberSuccess(i, trialMember)
+        super(DECurrentToPBest1BinWithArchive, self).trialMemberSuccess(i, trialMember)
         
 
 class JADE(DECurrentToPBest1Bin):
@@ -124,3 +125,4 @@ class JADEWithArchive(DECurrentToPBest1BinWithArchive, JADE):
     JADE with archive, implemented through multiple inheritance.
     """
     pass
+    

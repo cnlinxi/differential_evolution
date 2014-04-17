@@ -1,9 +1,10 @@
 import openpyxl, string, testFunctions
 from openpyxl.cell import get_column_letter
 from deBase import DERand1Bin, DECurrentToPBest1Bin
-from jade import JADE
+from jade import JADEWithArchive as JADE
 from sade import SaDE
 from jde import jDE
+from hybrids import LocalJADE, HybridJADE, HybridjDE, sadJADE
 from mixins import LoggingMixin, ParallelCostMixin, ValueToReachMixin
 ALPHABET = string.uppercase
 import time
@@ -23,8 +24,8 @@ The results are exported to Microsoft Excel.
 def study():
     if "--file" in sys.argv:
         f = open('study.out', 'w')
-    algorithms = [DERand1Bin, jDE, JADE, SaDE]
-    repeats = 50
+    algorithms = [LocalJADE]#[DERand1Bin, jDE, SaDE, JADE]
+    repeats = int(sys.argv[1])
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
     wb_name = 'DE_Tests_%s.xlsx'%(time.strftime('%d-%m-%Y__%H:%M'))
@@ -39,20 +40,28 @@ def study():
         'f3-30d': testFunctions.step30d,
         'f4-10d': testFunctions.ackley10d,
         'f4-30d': testFunctions.ackley30d,
-        'f5-10d': testFunctions.shekel10d,
+        'f5-5d': testFunctions.shekel5d,
     }
+    if "--problem" in sys.argv:
+        i = sys.argv.index("--problem")
+        p = sys.argv[i+1]
+        problems = {p: problems[p]}
     for problem_descr, problem in sorted(problems.iteritems()):
         print 'Testing %s'%(problem_descr)
         for Algorithm in algorithms:
-            if "--parallel" in sys.argv:
-                class DE(ParallelCostMixin, ValueToReachMixin, LoggingMixin, Algorithm):
-                    pass
-                if "--file" in sys.argv:
-                    f.write('\nParallel Processing on %s CPUs\n\n'%(multiprocessing.cpu_count()))
-            else:
-                class DE(ValueToReachMixin, LoggingMixin, Algorithm):
-                    pass
             problem_id = '%s_%s'%(problem_descr, Algorithm.__name__)
+            class DE(ValueToReachMixin, LoggingMixin, Algorithm):
+                pass
+            if '30d' in problem_id:
+                mfe = 100000
+                if "--parallel" in sys.argv:
+                    class DE(ParallelCostMixin, ValueToReachMixin, LoggingMixin, Algorithm):
+                        pass
+                    print '\nParallel Processing on %s CPUs\n'%(multiprocessing.cpu_count())
+                    if "--file" in sys.argv:
+                        f.write('\nParallel Processing on %s CPUs\n\n'%(multiprocessing.cpu_count()))
+            else:
+                mfe = 50000
             worksheets[problem_id] = wb.create_sheet()
             ws = worksheets[problem_id]
             ws.title = problem_id
@@ -60,7 +69,6 @@ def study():
             for i in xrange(repeats):
                 # Run the optimisation
                 uuid = str(problem_id) + str(i)
-                mfe = 100000 if '30d' in problem_id else 50000
                 de = DE(costFile=problem, uuid=uuid, valueToReach=1e-6, maxFunctionEvals=mfe)
                 run_name = '- Run %s with %s'%(i+1, problem_id)
                 print run_name
@@ -76,6 +84,7 @@ def study():
                             column_letter = get_column_letter((4 * i) + (column_index + 1))
                             ws.cell('%s%s'%(column_letter, (row_index + 1))).value = cell
                 os.remove(uuid + '.csv')
+                del de
                     
                     
     print 'Writing results to Excel...'

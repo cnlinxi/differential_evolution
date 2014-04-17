@@ -48,12 +48,12 @@ def cost(x):
     sum = 0
     for i in xrange(30):
         sp=0
-        for j in xrange(10):
+        for j in xrange(5):
             h=x[j]-a[i][j]
             sp+=h*h
         sum-=1.0/(sp+c[i])
-    return sum + 10.2088
+    return sum + 10.4056
     
 def getBounds():
-    dimensions = 10
+    dimensions = 5
     return [0] * dimensions, [10] * dimensions

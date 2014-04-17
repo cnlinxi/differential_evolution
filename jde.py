@@ -1,5 +1,6 @@
-from deBase import DERand1Bin, DECurrentToPBest1Bin
+from deBase import DERand1Bin
 import numpy
+from random import choice
 
 
 class jDE(DERand1Bin):
@@ -46,7 +47,3 @@ class jDE(DERand1Bin):
         super(jDE, self).selectNextGeneration(*args, **kwargs)
         self.f = numpy.mean([member.f for member in self.population.members])
         self.cr = numpy.mean([member.cr for member in self.population.members])
-        
-
-class HybridjDE(jDE, DECurrentToPBest1Bin):
-    pass

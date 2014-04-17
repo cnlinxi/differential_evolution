@@ -1,5 +1,4 @@
 from deBase import DERand1Bin, DECurrentToPBest1Bin
-from mixins import TwoDifferencesMixin
 from collections import deque
 import itertools
 import numpy
@@ -15,20 +14,23 @@ SaDE itself then inherits from these four variants.
 Note that this is the 2009 update of SaDE, not the original 2005 version.
 """
 
-class DECurrentToBest2Bin(TwoDifferencesMixin, DECurrentToPBest1Bin):
+class DECurrentToBest2Bin(DECurrentToPBest1Bin):
     def mutation(self, *args, **kwargs):
         kwargs['p'] = 0
-        return super(DECurrentToBest2Bin, self).mutation(*args, **kwargs)
+        kwargs['n'] = 2
+        return DECurrentToPBest1Bin.mutation(self, *args, **kwargs)
         
 
-class DERand2Bin(TwoDifferencesMixin, DERand1Bin):
-    pass
+class DERand2Bin(DERand1Bin):
+    def mutation(self, *args, **kwargs):
+        kwargs['n'] = 2
+        return DERand1Bin.mutation(self, *args, **kwargs)
 
 
 class DECurrentToRand1(DECurrentToPBest1Bin):
     def mutation(self, *args, **kwargs):
         kwargs['p'] = 1
-        return super(DECurrentToRand1, self).mutation(*args, **kwargs)
+        return DECurrentToPBest1Bin.mutation(self, *args, **kwargs)
         
     def crossover(self, parentIndex, mutant, cr):
         """

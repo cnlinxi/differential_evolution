@@ -1,5 +1,6 @@
 from multiprocessing import Pool, cpu_count
 import csv
+import population
 
 """
 Mixins can be included with any DE algorithm in this suite
@@ -73,11 +74,31 @@ class ValueToReachMixin(object):
             self.population.bestVector.cost < self.valueToReach)
             
 
-class TwoDifferencesMixin(object):
+class LocalSearchMixin(object):
     """
-    Easily convert a single vector difference DE variant, e.g. DE/rand/1/bin,
-    to a 2-vector difference variant, e.g. DE/rand/2/bin, by including this mix-in.
-    """ 
-    def mutation(self, *args, **kwargs):
-        kwargs['n'] = 2
-        return super(TwoDifferencesMixin, self).mutation(*args, **kwargs)
+    Adds a basic local search to DE. This will, at present, only work for algorithms
+    which do not encode additional information on population members like f, cr etc.
+    """
+    def generateTrialPopulation(self, *args, **kwargs):
+        """
+        Add the mean vector to end of the trial population.
+        """
+        trialPop = super(LocalSearchMixin, self).generateTrialPopulation(*args, **kwargs)
+        trialPop.members.append(population.Member(self.population.mean))
+        return trialPop
+        
+    def selectNextGeneration(self, trialPopulation):
+        """
+        Replace the worst vector with the mean,
+        if the mean is better than the median cost.
+        """
+        # Remove the last member from the trial population (which we know is the mean).
+        meanMember = trialPopulation.members.pop()
+        # Note the use of integer (floor) division.
+        medianMember = self.population.members[self.population.size / 2]
+        if meanMember.cost < medianMember.cost:
+            # print '%s replaces %s as < %s'%(meanMember, self.population.members[-1], medianMember)
+            # Note that the population is ordered by cost, low-high.
+            self.population.members[-1] = meanMember
+        super(LocalSearchMixin, self).selectNextGeneration(trialPopulation)
+        
