@@ -31,10 +31,10 @@ class DERand1Bin(object):
         containing the following methods:
         
         - cost(x): returning a scalar when passed a single vector argument x
-        - getBounds: returning a tuple, length 2, of the initialisation region.
+        - getBounds(): returning a tuple, length 2, of the initialisation region.
         
-        A Boolean 'absoluteBounds' may also be set. If this is True, mutations outside
-        the initialisation region will be banned.
+        A Boolean 'absoluteBounds' may optionally be set. If this is True, mutations
+        outside the initialisation region will be banned.
         
         Control parameters np (population size), f (mutation scaling factor) and
         cr (crossover ratio) can be specified, or left as the 'standard' values
@@ -56,12 +56,11 @@ class DERand1Bin(object):
             self.absoluteBounds = costFile.absoluteBounds
         except AttributeError:
             self.absoluteBounds = False
-        #print self.absoluteBounds
         # Number of function evaluations before the program terminates 
         self.maxFunctionEvals = maxFunctionEvals
         # The number of function evaluations now is, obviously, 0.
         self.functionEvaluations = 0
-        # Define solution parameters
+        # Define DE parameters
         self.cr = cr
         self.f = f
         
@@ -69,7 +68,7 @@ class DERand1Bin(object):
         """
         Helper function to return N Mutually Exclusive Random Integers (nmeri)
         in the range [0, maximum). Optionally takes an 'exclude'
-        argument; a list of integers which will be excluded from the set.
+        argument; a list of integers which will be excluded from the list.
         """
         selected = set()
         while len(selected) < n:
@@ -98,9 +97,10 @@ class DERand1Bin(object):
     def crossover(self, parentIndex, mutant, cr):
         """
         Create a trial member by crossing a parent with a mutant.
-        This function uses a binomial distribution to do so.
+        This function uses a binomial distribution to do so,
+        in the style of DE/X/X/bin.
         The probability of a mutant element being selected over a parent element is 
-        cr, the crossover factor. There also exists an 'iRand' to guarantee that
+        cr, the crossover ratio. There also exists an 'iRand' to guarantee that
         at least one mutant value is chosen.
         """
         parent = self.population.members[parentIndex]
@@ -113,7 +113,8 @@ class DERand1Bin(object):
         
     def generateTrialMember(self, i):
         """
-        Generate a single trial member by calling mutation and crossover operations.
+        Generate a single trial member on parent index i
+        by calling mutation and crossover operations.
         """
         mutant = self.mutation(i, self.f)
         trialMember = self.crossover(i, mutant, self.cr)
@@ -127,18 +128,26 @@ class DERand1Bin(object):
         trialMembers = []
         for i in xrange(np):
             trialMember = self.generateTrialMember(i)
+            # Bring the trial member back into the feasible region if necessary.
             if self.absoluteBounds:
                 trialMember.constrain(self.minVector, self.maxVector)
             trialMembers.append(trialMember)
         return population.Population(members=trialMembers)
         
+    def computeCosts(self, vectors):
+        """
+        This is a series function, called by assignCosts.
+        Could easily be overridden to use a parallel mapping function.
+        """
+        return map(self.cost, vectors)
+        
     def assignCosts(self, population):
         """
         Compute and assign cost function values to each member of the passed 
-        population object by considering the member vectors. 
+        population.Population instance by considering the member vectors. 
         Return the modified population.
         """
-        costs = map(self.cost, population.vectors)
+        costs = self.computeCosts(population.vectors)
         self.functionEvaluations += population.size
         for i in xrange(population.size):
             population.members[i].cost = costs[i]
@@ -148,6 +157,8 @@ class DERand1Bin(object):
         """
         This function is called in the event of trialMember being found to be 
         superior to its parent with index i in the population.
+        Its main action is to replace the losing population member
+        with the victorious trial member.
         """
         self.population.members[i] = trialMember
         
@@ -155,6 +166,7 @@ class DERand1Bin(object):
         """
         This function is called in the event of trialMember being found to be 
         inferior to its parent with index i in the population.
+        By default, it does nothing, but provides a 'hook' for future extensibility.
         """
         pass
         
@@ -180,6 +192,8 @@ class DERand1Bin(object):
         The main method. Call this method to run the optimisation.
         """
         self.population = self.assignCosts(self.population)
+        # A generation counter is provided for future extensibility,
+        # but is not used by basic DE.
         self.generation = 0
         while self.terminationCriterion() == False:
             self.generation += 1

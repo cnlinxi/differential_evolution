@@ -7,7 +7,11 @@ import numpy
 
 class Member(object):
     """
-    A member of a population.
+    A member of a population has a vector and an associated cost
+    (initialised to infinity).
+    Other attributes may be added as necessary.
+    Also provides a 'constrain' method to brick-wall constrain 
+    the member's vector within a boundary.
     """
     def __init__(self, vector):
         self.cost = numpy.inf
@@ -28,6 +32,9 @@ class Member(object):
         self.vector = v
         
     def __str__(self):
+        """
+        String representation of the member.
+        """
         vector = numpy.around(self.vector, 2)
         cost = numpy.around(self.cost, 5)
         return '%s (cost %s)'%(vector, cost)
@@ -36,7 +43,7 @@ class Member(object):
 class Population(object):
     """
     A group of Members, associated with statistical parameters such as
-    mean and standard deviation, and methods to (re)generate the Members.
+    mean and standard deviation, and methods to randomly (re)generate the Members.
     """
     def __init__(self, size=None, boundaries=None, sequential=False, members=None):
         """
@@ -75,10 +82,6 @@ class Population(object):
         return len(self.members)
         
     @property
-    def dimensionality(self):
-        return len(self.members[0].vector)
-        
-    @property
     def vectors(self):
         return [member.vector for member in self.members]
         
@@ -87,7 +90,7 @@ class Population(object):
         vectors = numpy.array(self.vectors)
         return numpy.column_stack(vectors)
     
-    @property  
+    @property 
     def costs(self):
         return [member.cost for member in self.members]
         
@@ -120,15 +123,6 @@ class Population(object):
     @property
     def worstVector(self):
         return self.members[self.worstVectorIndex]
-    
-    def reinitialise(self):
-        """
-        This method (re)initialises the population.
-        """
-        self.__init__(self.size, self.boundaries, self.sequential)
-        
-    def getVectorsByIndices(self, *args):
-        return [self.members[i].vector for i in args]
         
     def __str__(self):
         return 'Population: size=%s, mean=%s, std=%s'%(self.size,

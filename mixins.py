@@ -13,15 +13,11 @@ class ParallelCostMixin(object):
     A mixin to allow the cost function to be evaluated on parallel CPUs.
     """
             
-    def assignCosts(self, population):
+    def computeCosts(self, vectors):
         """
         Overridden to use the parallel map function
         """
-        costs = self.pool.map(self.cost, population.vectors)
-        self.functionEvaluations += population.size
-        for i in xrange(population.size):
-            population.members[i].cost = costs[i]
-        return population
+        return self.pool.map(self.cost, vectors)
         
     def optimise(self, *args, **kwargs):
         """
@@ -97,7 +93,6 @@ class LocalSearchMixin(object):
         # Note the use of integer (floor) division.
         medianMember = self.population.members[self.population.size / 2]
         if meanMember.cost < medianMember.cost:
-            # print '%s replaces %s as < %s'%(meanMember, self.population.members[-1], medianMember)
             # Note that the population is ordered by cost, low-high.
             self.population.members[-1] = meanMember
         super(LocalSearchMixin, self).selectNextGeneration(trialPopulation)

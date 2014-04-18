@@ -45,6 +45,10 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
     """
     
     def __init__(self, *args, **kwargs):
+        """
+        Upon initialisation, create a list of dicts containing
+        information about SaDE's four strategies.
+        """
         kwargs['f'] = 0.5
         kwargs['cr'] = 0.5
         super(SaDE, self).__init__(*args, **kwargs)
@@ -75,6 +79,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
                 'crMemory': deque(maxlen=self.lp)
             },
         ]
+        # Note that deques delete old contents as they overflow beyond maxlen.
         self.successMemory = deque(maxlen=self.lp)
         self.failureMemory = deque(maxlen=self.lp)
         
@@ -156,7 +161,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         Add a new row to the success, failure and cr memories (old ones are
         deleted automatically by the deque).
         """
-        # n = number of strategies in use. Called multiple times in this function.
+        # n = number of strategies in use. Called multiple times in this method.
         n = len(self.strategies)
         if self.generation > self.lp:
             self._computeCrMedians()
