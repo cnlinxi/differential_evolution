@@ -134,23 +134,15 @@ class DERand1Bin(object):
             trialMembers.append(trialMember)
         return population.Population(members=trialMembers)
         
-    def computeCosts(self, vectors):
-        """
-        This is a series function, called by assignCosts.
-        Could easily be overridden to use a parallel mapping function.
-        """
-        return map(self.cost, vectors)
-        
     def assignCosts(self, population):
         """
         Compute and assign cost function values to each member of the passed 
         population.Population instance by considering the member vectors. 
         Return the modified population.
         """
-        costs = self.computeCosts(population.vectors)
-        self.functionEvaluations += population.size
-        for i in xrange(population.size):
-            population.members[i].cost = costs[i]
+        for i, member in enumerate(population.members):
+            population.members[i].cost = self.cost(member.vector)
+            self.functionEvaluations += 1
         return population
         
     def trialMemberSuccess(self, i, trialMember):

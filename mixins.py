@@ -1,36 +1,11 @@
-from multiprocessing import Pool, cpu_count
 import csv
 import population
 
 """
-Mixins can be included with any DE algorithm in this suite
-to modify or extend their functionality in some way.
+Mixins can be included with any DE algorithm in this suite (unless otherwise
+specified) to modify or extend their functionality in some way.
 """
 
-
-class ParallelCostMixin(object):
-    """
-    A mixin to allow the cost function to be evaluated on parallel CPUs.
-    """
-            
-    def computeCosts(self, vectors):
-        """
-        Overridden to use the parallel map function
-        """
-        return self.pool.map(self.cost, vectors)
-        
-    def optimise(self, *args, **kwargs):
-        """
-        Extend the optimise function to start up and shut down a pool of workers.
-        """
-        cpus = cpu_count()
-        # A pool will, with no arguments, contain 'cpu_count' workers.
-        # The argument was included to be more explicit.
-        self.pool = Pool(cpus)
-        bestVector = super(ParallelCostMixin, self).optimise(*args, **kwargs)
-        self.pool.terminate()
-        return bestVector
-        
 
 class LoggingMixin(object):
     """
@@ -74,6 +49,7 @@ class LocalSearchMixin(object):
     """
     Adds a basic local search to DE. This will, at present, only work for algorithms
     which do not encode additional information on population members like f, cr etc.
+    It seems to be promising at low, but not high, dimensionality.
     """
     def generateTrialPopulation(self, *args, **kwargs):
         """
@@ -96,4 +72,3 @@ class LocalSearchMixin(object):
             # Note that the population is ordered by cost, low-high.
             self.population.members[-1] = meanMember
         super(LocalSearchMixin, self).selectNextGeneration(trialPopulation)
-        
