@@ -1,1 +1,1 @@
-rsync --exclude='.git/' -rtvz /Users/Blake/Documents/Sites/fyp iceberg:/home/mea09bh
+rsync --exclude='.git/' --exclude='*.xlsx' -rtvz /Users/Blake/Dev/fyp iceberg:/home/mea09bh

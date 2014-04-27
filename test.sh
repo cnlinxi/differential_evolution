@@ -1,1 +1,1 @@
-python testparallel.py
+abaqus cae noGUI=beamProblem.py

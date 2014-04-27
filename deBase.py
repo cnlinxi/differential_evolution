@@ -48,6 +48,13 @@ class DERand1Bin(object):
         self.minVector, self.maxVector = costFile.getBounds()
         # Infer the problem dimensionality from one of these (arbitrarily)
         self.d = len(self.minVector)
+        # Check for 'phantom' indices, whereby the min and max vectors
+        # constrain a variable to be constant.
+        self.phantomIndices = []
+        vectorDifference = numpy.array(self.maxVector) - numpy.array(self.minVector)
+        for i, x in enumerate(vectorDifference):
+            if x==0:
+                self.phantomIndices.append(i)
         # Initialise population randomly within the boundaries.
         self.population = population.Population(
             size=np, boundaries=(self.minVector, self.maxVector))
@@ -104,7 +111,8 @@ class DERand1Bin(object):
         at least one mutant value is chosen.
         """
         parent = self.population.members[parentIndex]
-        iRand = numpy.random.randint(self.d)
+        # Exclude phantom indices as choices for iRand
+        iRand = self._nmeri(1, self.d, exclude=self.phantomIndices)[0]
         for i in xrange(self.d):
             if numpy.random.rand() > cr and i != iRand:
                 mutant.vector[i] = parent.vector[i]

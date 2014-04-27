@@ -14,7 +14,15 @@ import numpy
 import os
 import time
 import subprocess
+from glob import glob
             
+def customPrint(text):
+    """
+    Print to sys.__stderr__ (like Abaqus does).
+    """
+    sys.__stderr__.write('%s%s'%(text, os.linesep))
+    sys.__stderr__.flush()
+
 class AbaqusNodeKDTree(spatial.KDTree):
     """
     Used to identify the closest node to point in the continuous domain.
@@ -61,6 +69,19 @@ class AbaqusJADE(JADEWithArchive):
         # A table for visited nodes and their associated costs / unique run ids.
         # Entries are tuples: visitedNodes[x] = (cost, urid)
         self.visitedNodes = {}
+        # A list of best-so-far urids, used for file I/O
+        self.bestSoFarUrids = []
+        
+    def commutativeVector(self, vector):
+        """
+        Adjust a vector such that it is sorted by x, y then z.
+        """
+        x, y, z = vector[0::3], vector[1::3], vector[2::3] 
+        coordinates = zip(x, y, z)
+        coordinates.sort()
+        # Flatten back into a Numpy array
+        vector = numpy.array([el for coord in coordinates for el in coord])
+        return vector
         
     def assignCosts(self, population):
         """
@@ -68,6 +89,9 @@ class AbaqusJADE(JADEWithArchive):
         population.Population instance by considering the member vectors. 
         Return the modified population.
         """
+        # Sort population vectors.
+        for i, member in enumerate(population.members):
+            population.members[i].vector = self.commutativeVector(member.vector)
         # Prepare a to-do list of runs
         toDo = {}
         for i, member in enumerate(population.members):
@@ -88,7 +112,7 @@ class AbaqusJADE(JADEWithArchive):
         # Wait for completion
         output = 'abaqus'
         while 'abaqus' in output:
-            time.sleep(2)
+            time.sleep(1)
             # THIS LINE IS ALSO UNIQUE TO TUOS ICEBERG!
             p = subprocess.Popen('Qstat',stdout=subprocess.PIPE,stderr=subprocess.PIPE)
             output, errors = p.communicate()
@@ -108,23 +132,38 @@ class AbaqusJADE(JADEWithArchive):
         """
         Returns True if all of the population have converged on 
         identical nodes - the only sensible FE termination criterion.
+        Also print logging info to stderr, and conduct file I/O operations.
         """
+        bestSoFarUrid = self.population.bestVector.urid
+        self.bestSoFarUrids.append(bestSoFarUrid)
+        # Print logging info
+        customPrint('At generation %s'%(self.generation))
+        customPrint('  Best-so-far vector: %s'%(self.population.bestVector))
+        customPrint('  URID of best vector: %s'%(bestSoFarUrid))
+        customPrint('  Standard Deviation of vectors: %s'%(self.population.standardDeviation))
+        customPrint('  Mean control parameters: f=%s, cr=%s'%(self.f, self.cr))
+        # File I/O
+        unusedUrids = [m.urid for m in self.population.members if m.urid not in self.bestSoFarUrids]
+        unusedFiles = glob('abaqus*')
+        for urid in unusedUrids:
+            unusedFiles += glob(urid + '.*')
+        for f in unusedFiles:
+            try:
+                os.remove(f)
+            except OSError:
+                # Files may have already been removed
+                pass
+        # Termination criterion
         solutions = set([member.nodes for member in self.population.members])
         return len(solutions) == 1
-        
-                 
+
+
 class AbaqusProblem(object):
     """
     An abstract class to be subclassed in specific Abaqus optimisation problems.
     
-    In addition to the standard methods provided by a continuous-domain
-    costFile (cost(x), getBounds()), subclasses of this class should incorporate
-    a getNodesFromVector(x) method to translate points in the continuous
-    domain to the discrete domain. Bounds are assumed to be absolute unless
-    otherwise specified.
-    
-    AbaqusProblems must also implement methods to get an MDB, set up an analysis and
-    post-process (getMDB(), setUp(nodes), and postProcess(odb) respectively).
+    AbaqusProblems must implement methods to get a model, set up an analysis and
+    post-process.
 
     A runAnalysis method is provided, as is a method of translating a
     continuous vector to a sequence of nearest nodes (using a KD-Tree).
@@ -132,17 +171,21 @@ class AbaqusProblem(object):
     base class.
     """
     def __init__(self):
-        self.absoluteBounds = True
-        self.baseModel = self.getModel()
-        # Get a list of all node objects and create a KDTree.
-        nodes = []
-        for instance in self.baseMdb.rootAssembly.instances.values():
-            nodes.extend(instance.nodes)
-        self.kdTree = AbaqusNodeKDTree(nodes)
+        self.baseModel = self.getBaseModel()
+        # Get a list of node objects and create a KDTree.
+        self.nodes = self.getFeasibleNodes(self.baseModel)
+        self.kdTree = AbaqusNodeKDTree(self.nodes)
         
     def getBaseModel(self):
         """
         Subclasses must include this method. It should return an mdb.Model instance.
+        """
+        raise NotImplementedError
+        
+    def getFeasibleNodes(self, model): 
+        """
+        Subclasses must include this method. It should return a list of MeshNode objects
+        representing the feasible region.
         """
         raise NotImplementedError
         
@@ -151,6 +194,15 @@ class AbaqusProblem(object):
         Return a copy of self.baseModel
         """
         return mdb.Model(name=urid, objectToCopy=self.baseModel)
+        
+    def getBounds(self):
+        """
+        Infer the bounds from the problem dimensions.
+        """
+        coords = [node.coordinates for node in self.nodes]
+        minimum = numpy.min(coords, axis=0)
+        maximum = numpy.max(coords, axis=0)
+        return list(minimum), list(maximum)
         
     def setUp(self, nodes, model, urid):
         """

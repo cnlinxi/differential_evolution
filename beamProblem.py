@@ -4,7 +4,7 @@ from abaqusConstants import *
 from odbAccess import *
 import regionToolset
 # DE
-from deAbaqus import AbaqusJADE
+from deAbaqus import AbaqusProblem, AbaqusJADE
 # Generic
 import os
 import time
@@ -74,17 +74,22 @@ def buildABeam(name, length, materialName, youngsModulus,
         region=topSurface, magnitude=loadMagnitude)
     return model
     
-    
-length = 500
 
 class BeamProblem(AbaqusProblem):
     
-    def getModel(self):
-        return buildABeam('beam', length, 'steel', 210000, 0.3, 10, 10, 100, 1)
+    def getBaseModel(self):
+        return buildABeam('beam', 1000, 'steel', 210000, 0.3, 10, 10, 500, 1)
+        
+    def getFeasibleNodes(self, model):
+        nodes = []
+        for instance in model.rootAssembly.instances.values():
+            nodes.extend(instance.nodes)
+        return nodes
         
     def getBounds(self):
-        n = 1  # Number of encastres
-        return [0, 0, 0] * n, [length, 0, 0] * n
+        minimum, maximum = super(BeamProblem, self).getBounds()
+        n = 3  # Number of encastres
+        return minimum * n, maximum * n
         
     def setUp(self, nodes, urid, model):
         """
@@ -112,7 +117,7 @@ class BeamProblem(AbaqusProblem):
         return peak
              
 if __name__ == '__main__': 
-    problem = AbaqusJADE(ProblemClass=BeamProblem)
+    problem = AbaqusJADE(AbaqusProblemClass=BeamProblem, np=15)
     bestVector = problem.optimise()
     sys.__stderr__.write('BEST: %s%s'%(bestVector, os.linesep))
     sys.__stderr__.flush()
