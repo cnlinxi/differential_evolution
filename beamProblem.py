@@ -7,7 +7,6 @@ import regionToolset
 from deAbaqus import AbaqusProblem, AbaqusJADE
 # Generic
 import os
-import time
         
 # Tests
 
@@ -76,6 +75,8 @@ def buildABeam(name, length, materialName, youngsModulus,
     
 
 class BeamProblem(AbaqusProblem):
+
+    numberOfNodes = 3
     
     def getBaseModel(self):
         return buildABeam('beam', 1000, 'steel', 210000, 0.3, 10, 10, 500, 1)
@@ -85,11 +86,6 @@ class BeamProblem(AbaqusProblem):
         for instance in model.rootAssembly.instances.values():
             nodes.extend(instance.nodes)
         return nodes
-        
-    def getBounds(self):
-        minimum, maximum = super(BeamProblem, self).getBounds()
-        n = 3  # Number of encastres
-        return minimum * n, maximum * n
         
     def setUp(self, nodes, urid, model):
         """

@@ -143,16 +143,15 @@ class AbaqusJADE(JADEWithArchive):
         customPrint('  Standard Deviation of vectors: %s'%(self.population.standardDeviation))
         customPrint('  Mean control parameters: f=%s, cr=%s'%(self.f, self.cr))
         # File I/O
-        unusedUrids = [m.urid for m in self.population.members if m.urid not in self.bestSoFarUrids]
-        unusedFiles = glob('abaqus*')
-        for urid in unusedUrids:
-            unusedFiles += glob(urid + '.*')
-        for f in unusedFiles:
-            try:
-                os.remove(f)
-            except OSError:
-                # Files may have already been removed
-                pass
+        allFiles = glob('*')
+        for f in allFiles:
+            for urid in self.bestSoFarUrids:
+                if '%s.'%(urid) in f:
+                    # Remove this file from the to-delete list
+                    allFiles.remove(f)
+                    break
+        for f in allFiles:
+            os.remove(f)
         # Termination criterion
         solutions = set([member.nodes for member in self.population.members])
         return len(solutions) == 1
@@ -167,9 +166,11 @@ class AbaqusProblem(object):
 
     A runAnalysis method is provided, as is a method of translating a
     continuous vector to a sequence of nearest nodes (using a KD-Tree).
-    A tearDown() method is called at the end of the run, which does nothing in this 
-    base class.
+    A tearDown() method is called at the end of the run.
     """
+    numberOfNodes = 1
+    absoluteBounds = True
+    
     def __init__(self):
         self.baseModel = self.getBaseModel()
         # Get a list of node objects and create a KDTree.
@@ -202,7 +203,8 @@ class AbaqusProblem(object):
         coords = [node.coordinates for node in self.nodes]
         minimum = numpy.min(coords, axis=0)
         maximum = numpy.max(coords, axis=0)
-        return list(minimum), list(maximum)
+        n = self.numberOfNodes
+        return n * list(minimum), n * list(maximum)
         
     def setUp(self, nodes, model, urid):
         """
@@ -213,9 +215,11 @@ class AbaqusProblem(object):
     def tearDown(self):
         """
         Called after each run. Include any actions that need to be performed on
-        self.baseModel to return it to its as-initialised state.
+        the base model to return it to its as-initialised state.
         """
-        pass
+        for name in mdb.models.keys():
+            if name != self.baseModel.name:
+                del mdb.models[name]
         
     def getOdb(self, odbName):
         """
