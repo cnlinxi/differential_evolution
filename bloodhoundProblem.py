@@ -13,15 +13,15 @@ import os
 class BloodhoundProblem(AbaqusProblem):
 
     numberOfNodes = 16
-    
+
     def getBaseModel(self):
         f = openMdb('abaqusFiles/bloodhound.cae')
         model = f.models['Bloodhound_Baffle']
         return model
-        
+
     def getFeasibleNodes(self, model):
         return model.rootAssembly.sets['edges'].nodes
-        
+
     def setUp(self, nodes, urid, model):
         """
         Add bolted joints at 'nodes'
@@ -52,11 +52,11 @@ class BloodhoundProblem(AbaqusProblem):
                 anchorPoint = (coords[0], coords[1] - TANK_THICKNESS, coords[2])
                 csysId = a.features['csys-vertical'].id
             elif 'dia-left' in nodeSetName:
-                anchorPoint = (coords[0] - (TANK_THICKNESS / (2**0.5)), 
+                anchorPoint = (coords[0] - (TANK_THICKNESS / (2**0.5)),
                         coords[1] - (TANK_THICKNESS / (2**0.5)), coords[2])
                 csysId = a.features['csys-dia-left'].id
             elif 'dia-right' in nodeSetName:
-                anchorPoint = (coords[0] + (TANK_THICKNESS / (2**0.5)), 
+                anchorPoint = (coords[0] + (TANK_THICKNESS / (2**0.5)),
                         coords[1] - (TANK_THICKNESS / (2**0.5)), coords[2])
                 csysId = a.features['csys-dia-right'].id
             elif 'left' in nodeSetName:
@@ -64,10 +64,10 @@ class BloodhoundProblem(AbaqusProblem):
                 csysId = a.features['csys-horizontal'].id
             elif 'right' in nodeSetName:
                 anchorPoint = (coords[0] +  TANK_THICKNESS, coords[1], coords[2])
-                csysId = a.features['csys-horizontal'].id            
+                csysId = a.features['csys-horizontal'].id
             anchorRef = a.ReferencePoint(point=anchorPoint)
             # Create a wire feature for the connector
-            wire = a.WirePolyLine(points=((a.referencePoints[nodeRef.id], 
+            wire = a.WirePolyLine(points=((a.referencePoints[nodeRef.id],
                     a.referencePoints[anchorRef.id]), ), mergeWire=OFF, meshable=OFF)
             # Find the length-1 EdgeArray corresponding to this wire
             i = 0
@@ -83,13 +83,13 @@ class BloodhoundProblem(AbaqusProblem):
             # Couple the nodal reference point to the node itself
             referenceRegion = regionToolset.Region(referencePoints=(a.referencePoints[nodeRef.id], ))
             nodeRegion = regionToolset.Region(nodes=nodeSequence)
-            model.Coupling(name=nodeName, controlPoint=referenceRegion, surface=nodeRegion, 
+            model.Coupling(name=nodeName, controlPoint=referenceRegion, surface=nodeRegion,
                     influenceRadius=WHOLE_SURFACE, couplingType=KINEMATIC, localCsys=None,
                     u1=ON, u2=ON, u3=ON, ur1=ON, ur2=ON, ur3=ON)
         # Deactivate old BC and return
         model.boundaryConditions['fixed_sides'].deactivate(urid)
         return model
-    
+
     def postProcess(self, odb):
         """
         Get the maximum deflection in the baffle
@@ -99,9 +99,9 @@ class BloodhoundProblem(AbaqusProblem):
         deflectionField = finalFrame.fieldOutputs['U']
         peak = max([u.magnitude for u in deflectionField.values])
         return peak
-        
-        
-if __name__ == '__main__': 
+
+
+if __name__ == '__main__':
     problem = AbaqusJADE(AbaqusProblemClass=BloodhoundProblem, np=40)
     bestVector = problem.optimise()
     sys.__stderr__.write('BEST: %s%s'%(bestVector, os.linesep))

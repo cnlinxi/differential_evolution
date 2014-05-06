@@ -7,10 +7,9 @@ import regionToolset
 from deAbaqus import AbaqusProblem, AbaqusJADE
 # Generic
 import os
-        
-# Tests
 
-def buildABeam(name, length, materialName, youngsModulus, 
+
+def buildABeam(name, length, materialName, youngsModulus,
     poissonsRatio, width, height, numberOfElements, loadMagnitude):
     '''
     A function to build an mdb.Model object for a beam,
@@ -32,14 +31,14 @@ def buildABeam(name, length, materialName, youngsModulus,
     material.Elastic(table=(elasticProperties, ) )
     # Create a rectangular beam section.
     profile = model.RectangularProfile(name='beamProfile', a=height, b=width)
-    section = model.BeamSection(name='beamSection', profile='beamProfile', 
-        integration=DURING_ANALYSIS, poissonRatio=0.0, material=material.name, 
+    section = model.BeamSection(name='beamSection', profile='beamProfile',
+        integration=DURING_ANALYSIS, poissonRatio=0.0, material=material.name,
         temperatureVar=LINEAR)
-    # Assign the section to the region. The region refers 
+    # Assign the section to the region. The region refers
     # to the single cell in this model.
     region = (beamPart.edges,)
     beamPart.SectionAssignment(region=region, sectionName='beamSection')
-    beamPart.assignBeamSectionOrientation(region=region, 
+    beamPart.assignBeamSectionOrientation(region=region,
         method=N1_COSINES, n1=(0.0, 0.0, 1.0))
     # Create a part instance.
     assembly = model.rootAssembly
@@ -72,21 +71,21 @@ def buildABeam(name, length, materialName, youngsModulus,
     model.Pressure(name='Pressure', createStepName='beamLoad',
         region=topSurface, magnitude=loadMagnitude)
     return model
-    
+
 
 class BeamProblem(AbaqusProblem):
 
     numberOfNodes = 3
-    
+
     def getBaseModel(self):
         return buildABeam('beam', 1000, 'steel', 210000, 0.3, 10, 10, 500, 1)
-        
+
     def getFeasibleNodes(self, model):
         nodes = []
         for instance in model.rootAssembly.instances.values():
             nodes.extend(instance.nodes)
         return nodes
-        
+
     def setUp(self, nodes, urid, model):
         """
         Create a new mdb with "nodes" constrained on the last step.
@@ -101,7 +100,7 @@ class BeamProblem(AbaqusProblem):
             model.EncastreBC(name=bcName, createStepName=urid, region=region)
             model.boundaryConditions[extantSteps[-1]].deactivate(urid)
         return model
-    
+
     def postProcess(self, odb):
         """
         Get the maximum deflection in the beam
@@ -111,8 +110,8 @@ class BeamProblem(AbaqusProblem):
         deflectionField = finalFrame.fieldOutputs['U']
         peak = max([u.magnitude for u in deflectionField.values])
         return peak
-             
-if __name__ == '__main__': 
+
+if __name__ == '__main__':
     problem = AbaqusJADE(AbaqusProblemClass=BeamProblem, np=15)
     bestVector = problem.optimise()
     sys.__stderr__.write('BEST: %s%s'%(bestVector, os.linesep))

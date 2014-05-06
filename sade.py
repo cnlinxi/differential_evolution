@@ -14,12 +14,13 @@ SaDE itself then inherits from these four variants.
 Note that this is the 2009 update of SaDE, not the original 2005 version.
 """
 
+
 class DECurrentToBest2Bin(DECurrentToPBest1Bin):
     def mutation(self, *args, **kwargs):
         kwargs['p'] = 0
         kwargs['n'] = 2
         return DECurrentToPBest1Bin.mutation(self, *args, **kwargs)
-        
+
 
 class DERand2Bin(DERand1Bin):
     def mutation(self, *args, **kwargs):
@@ -31,7 +32,7 @@ class DECurrentToRand1(DECurrentToPBest1Bin):
     def mutation(self, *args, **kwargs):
         kwargs['p'] = 1
         return DECurrentToPBest1Bin.mutation(self, *args, **kwargs)
-        
+
     def crossover(self, parentIndex, mutant, cr):
         """
         This algorithm does not implement crossover to retain rotational invariance.
@@ -43,7 +44,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
     """
     An implementation of Qin et al.'s Self-adaptive Differential Evolution (SaDE).
     """
-    
+
     def __init__(self, *args, **kwargs):
         """
         Upon initialisation, create a list of dicts containing
@@ -57,32 +58,32 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
             {
                 'algorithm': DERand1Bin,
                 'probability': 0.25,
-                'cr': 0.5, 
+                'cr': 0.5,
                 'crMemory': deque(maxlen=self.lp)
             },
             {
-                'algorithm': DECurrentToBest2Bin, 
-                'probability': 0.25, 
-                'cr': 0.5, 
+                'algorithm': DECurrentToBest2Bin,
+                'probability': 0.25,
+                'cr': 0.5,
                 'crMemory': deque(maxlen=self.lp)
             },
             {
                 'algorithm': DERand2Bin,
                 'probability': 0.25,
-                'cr': 0.5,  
+                'cr': 0.5,
                 'crMemory': deque(maxlen=self.lp)
             },
             {
                 'algorithm': DECurrentToRand1,
                 'probability': 0.25,
-                'cr': 0.5,  
+                'cr': 0.5,
                 'crMemory': deque(maxlen=self.lp)
             },
         ]
         # Note that deques delete old contents as they overflow beyond maxlen.
         self.successMemory = deque(maxlen=self.lp)
         self.failureMemory = deque(maxlen=self.lp)
-        
+
     def _updateStrategyProbabilities(self):
         """
         Update the probability of each strategy being selected by examining the
@@ -96,10 +97,10 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         scalingFactor = 1 / sum(unscaledProbabilities)
         for i in xrange(len(self.strategies)):
             self.strategies[i]['probability'] = unscaledProbabilities[i] * scalingFactor
-        
+
     def _stochasticUniversalSampleStrategies(self):
         """
-        Returns a randomised list of NP strategy indices, sampled using the 
+        Returns a randomised list of NP strategy indices, sampled using the
         Stochastic Universal Sampling technique, weighted by strategy probability.
         """
         # Assemble the sampling thresholds
@@ -120,8 +121,8 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
             pointer += interval
         numpy.random.shuffle(sample)
         return sample
-        
-        
+
+
     def _computeCrMedians(self):
         """
         Establish the median successful cr for each strategy in the last lp generations.
@@ -131,7 +132,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
             if flattenedCr:
                 # Skip this step if there were no successes
                 self.strategies[i]['cr'] = numpy.median(flattenedCr)
-        
+
     def generateTrialMember(self, i):
         """
         Override to include randomisation controls and attribute marking.
@@ -153,7 +154,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         trialMember.strategy = strategyIndex
         trialMember.cr = cri
         return trialMember
-        
+
     def generateTrialPopulation(self, *args, **kwargs):
         """
         Compute cr medians.
@@ -171,9 +172,9 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         self.successMemory.append([0] * n)
         self.failureMemory.append([0] * n)
         for i in xrange(n):
-            self.strategies[i]['crMemory'].append([])  
+            self.strategies[i]['crMemory'].append([])
         return super(SaDE, self).generateTrialPopulation(*args, **kwargs)
-        
+
     def trialMemberSuccess(self, i, trialMember):
         """
         This function is extended to log successful cr and strategy.
@@ -181,7 +182,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         self.strategies[trialMember.strategy]['crMemory'][-1].append(trialMember.cr)
         self.successMemory[-1][trialMember.strategy] += 1
         super(SaDE, self).trialMemberSuccess(i, trialMember)
-        
+
     def trialMemberFailure(self, i, trialMember):
         """
         This function is extended to log unsuccessful strategies.

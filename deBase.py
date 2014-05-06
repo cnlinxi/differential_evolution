@@ -5,13 +5,13 @@ import population
 """
 Blake Hemingway, University of Sheffield, May 2014
 
-Differential Evolution (DE) is an optimisation algorithm that minimises 
+Differential Evolution (DE) is an optimisation algorithm that minimises
 an n-dimensional cost function using a population-based approach.
 
 This file contains base classes representing generalised forms of the
 most common DE variants.
 
-More advanced forms of DE, with, for example, adaptive parameter controls, 
+More advanced forms of DE, with, for example, adaptive parameter controls,
 may be implemented as subclasses of these.
 Options (e.g. parallel cost function evaluation, logging to CSV file, different
 termination criteria, crossover techniques etc.) can be implemented as mix-ins.
@@ -23,19 +23,19 @@ class DERand1Bin(object):
     This is 'classic' DE as outlined in Storn and Price's "Differential Evolution:
     A Practical Approach to Global Optimization".
     """
-    
+
     def __init__(self, costFile, np=50, f=0.8, cr=0.9, maxFunctionEvals=50000):
         """
         This function is called when the DifferentialEvolution class is instantiated.
         A 'costFile' must be passed: this should be an included Python module
         containing the following methods:
-        
+
         - cost(x): returning a scalar when passed a single vector argument x
         - getBounds(): returning a tuple, length 2, of the initialisation region.
-        
+
         A Boolean 'absoluteBounds' may optionally be set. If this is True, mutations
         outside the initialisation region will be banned.
-        
+
         Control parameters np (population size), f (mutation scaling factor) and
         cr (crossover ratio) can be specified, or left as the 'standard' values
         as stated by Qin & Suganthan (np) and Storn (cr, f).
@@ -63,14 +63,14 @@ class DERand1Bin(object):
             self.absoluteBounds = costFile.absoluteBounds
         except AttributeError:
             self.absoluteBounds = False
-        # Number of function evaluations before the program terminates 
+        # Number of function evaluations before the program terminates
         self.maxFunctionEvals = maxFunctionEvals
         # The number of function evaluations now is, obviously, 0.
         self.functionEvaluations = 0
         # Define DE parameters
         self.cr = cr
         self.f = f
-        
+
     def _nmeri(self, n, maximum, exclude=[]):
         """
         Helper function to return N Mutually Exclusive Random Integers (nmeri)
@@ -84,7 +84,7 @@ class DERand1Bin(object):
             if rand not in exclude:
                 selected.add(rand)
         return list(selected)
-        
+
     def mutation(self, i, f, n=1):
         """
         The mutation style used by de/rand/n.
@@ -100,13 +100,13 @@ class DERand1Bin(object):
             except NameError:
                 difference = v1 - v2
         return population.Member(baseVector + f * difference)
-        
+
     def crossover(self, parentIndex, mutant, cr):
         """
         Create a trial member by crossing a parent with a mutant.
         This function uses a binomial distribution to do so,
         in the style of DE/X/X/bin.
-        The probability of a mutant element being selected over a parent element is 
+        The probability of a mutant element being selected over a parent element is
         cr, the crossover ratio. There also exists an 'iRand' to guarantee that
         at least one mutant value is chosen.
         """
@@ -118,7 +118,7 @@ class DERand1Bin(object):
                 mutant.vector[i] = parent.vector[i]
         # 'mutant' is now not strictly a mutant but a trial member.
         return mutant
-        
+
     def generateTrialMember(self, i):
         """
         Generate a single trial member on parent index i
@@ -127,7 +127,7 @@ class DERand1Bin(object):
         mutant = self.mutation(i, self.f)
         trialMember = self.crossover(i, mutant, self.cr)
         return trialMember
-        
+
     def generateTrialPopulation(self, np):
         """
         Create a trial population (size np) from an existing population.
@@ -141,35 +141,35 @@ class DERand1Bin(object):
                 trialMember.constrain(self.minVector, self.maxVector)
             trialMembers.append(trialMember)
         return population.Population(members=trialMembers)
-        
+
     def assignCosts(self, population):
         """
-        Compute and assign cost function values to each member of the passed 
-        population.Population instance by considering the member vectors. 
+        Compute and assign cost function values to each member of the passed
+        population.Population instance by considering the member vectors.
         Return the modified population.
         """
         for i, member in enumerate(population.members):
             population.members[i].cost = self.cost(member.vector)
             self.functionEvaluations += 1
         return population
-        
+
     def trialMemberSuccess(self, i, trialMember):
         """
-        This function is called in the event of trialMember being found to be 
+        This function is called in the event of trialMember being found to be
         superior to its parent with index i in the population.
         Its main action is to replace the losing population member
         with the victorious trial member.
         """
         self.population.members[i] = trialMember
-        
+
     def trialMemberFailure(self, i, trialMember):
         """
-        This function is called in the event of trialMember being found to be 
+        This function is called in the event of trialMember being found to be
         inferior to its parent with index i in the population.
         By default, it does nothing, but provides a 'hook' for future extensibility.
         """
         pass
-        
+
     def selectNextGeneration(self, trialPopulation):
         """
         Compare the main population with the trial population by cost.
@@ -180,13 +180,13 @@ class DERand1Bin(object):
                 self.trialMemberSuccess(i, trialMember)
             else:
                 self.trialMemberFailure(i, trialMember)
-                
+
     def terminationCriterion(self):
         """
         Termination is based on a limited number of function evaluations.
         """
         return self.functionEvaluations >= self.maxFunctionEvals
-        
+
     def optimise(self):
         """
         The main method. Call this method to run the optimisation.
@@ -204,28 +204,28 @@ class DERand1Bin(object):
             # Insert improvements
             self.selectNextGeneration(trialPopulation)
         return self.population.bestVector
-        
+
 
 class DECurrentToPBest1Bin(DERand1Bin):
     """
     Constructs mutants in accordance with the following procedure:
-    
+
     u_i = x_i + k*(x_pbest - x_i) + f_i*(x_r1 - x_r2)
-    
+
     Where x_pbest is randomly chosen as one of the top 100 p% individuals,
-    
+
     The following algorithms are specific cases:
-    
+
     - DE/best/1/bin (k = 1, p = 0)
     - DE/current-to-best/1/bin (k = fi, p = 0)
     - DE/current-to-rand/1/bin (k = fi, p = 1)
-    
+
     k is taken as equal to fi unless otherwise specified in the constructor.
     k may also be callable (e.g. a random number generating function),
     in which case it will be evaluated without arguments.
     p = 0.05 by default, as given in Zhang and Sanderson's JADE.
     """
-        
+
     def mutation(self, i, f, n=1, k=None, p=0.05):
         if k is None:
             k = f
@@ -254,7 +254,7 @@ class DECurrentToPBest1Bin(DERand1Bin):
             except NameError:
                 difference = v1 - v2
         return population.Member(baseVector + f * difference)
-        
+
     def generateTrialPopulation(self, *args, **kwargs):
         """
         Sort main population by cost before generating trial population.

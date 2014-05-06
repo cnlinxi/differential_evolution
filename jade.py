@@ -3,20 +3,21 @@ from deBase import DECurrentToPBest1Bin
 from collections import deque
 import numpy
 
+
 class DECurrentToPBest1BinWithArchive(DECurrentToPBest1Bin):
     """
     Zhang and Sanderson describe how  past failures can be exploited as clues
     regarding promising solution directions using an 'archive'.
     """
-    
+
     def __init__(self, *args, **kwargs):
         super(DECurrentToPBest1BinWithArchive, self).__init__(*args, **kwargs)
         # Archive is implemented here as a double-ended queue (deque).
         # As it overflows beyond np, the oldest items will be deleted.
-        # The original JADE simply deleted items at random. The archive 
+        # The original JADE simply deleted items at random. The archive
         # itself may also be tournament-selected.
         self.archive = deque(maxlen=self.population.size)
-        
+
     def mutation(self, i, f, n=1, k=None, p=0.05):
         """
         A lot of this is, begrudgingly, copied and pasted from DECurrentToPBest1Bin;
@@ -54,32 +55,32 @@ class DECurrentToPBest1BinWithArchive(DECurrentToPBest1Bin):
             except NameError:
                 difference = v1 - v2
         return population.Member(baseVector + f * difference)
-        
+
     def trialMemberSuccess(self, i, trialMember):
         """
         This function is extended to insert surpassed parents into the archive.
         """
         self.archive.append(self.population.members[i])
         super(DECurrentToPBest1BinWithArchive, self).trialMemberSuccess(i, trialMember)
-        
+
 
 class JADE(DECurrentToPBest1Bin):
     """
     An implementation of Zhang & Sanderson's adaptive JADE algorithm,
     without archive.
     """
-    
+
     def __init__(self, *args, **kwargs):
         kwargs['f'] = 0.5
         kwargs['cr'] = 0.5
         super(JADE, self).__init__(*args, **kwargs)
-        
+
     def _lehmerMean(self, a):
         """
         Returns the Lehmer mean of a list of numbers 'a'.
         """
         return sum(x*x for x in a) / float(sum(a))
-        
+
     def generateTrialMember(self, i):
         """
         Override to include randomisation controls and attribute marking.
@@ -98,7 +99,7 @@ class JADE(DECurrentToPBest1Bin):
         trialMember.f = fi
         trialMember.cr = cri
         return trialMember
-        
+
     def trialMemberSuccess(self, i, trialMember):
         """
         This function is extended to log successful f and cr.
@@ -106,7 +107,7 @@ class JADE(DECurrentToPBest1Bin):
         self.successfulCr.append(trialMember.cr)
         self.successfulF.append(trialMember.f)
         super(JADE, self).trialMemberSuccess(i, trialMember)
-        
+
     def selectNextGeneration(self, trialPopulation, c=0.1):
         """
         Override to include adaptive logic.
@@ -120,11 +121,10 @@ class JADE(DECurrentToPBest1Bin):
         if self.successfulCr:
             self.cr = (1 - c) * self.cr + c * numpy.mean(self.successfulCr)
             self.f = (1 - c) * self.f + c * self._lehmerMean(self.successfulF)
-            
+
 
 class JADEWithArchive(DECurrentToPBest1BinWithArchive, JADE):
     """
     JADE with archive, implemented through multiple inheritance.
     """
     pass
-    

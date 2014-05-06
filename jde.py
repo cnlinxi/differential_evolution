@@ -38,7 +38,7 @@ class jDE(DERand1Bin):
         trialMember.f = f
         trialMember.cr = cr
         return trialMember
-        
+
     def selectNextGeneration(self, *args, **kwargs):
         """
         Update the 'master' f and cr with the mean values in the population.

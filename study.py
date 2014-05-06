@@ -85,8 +85,8 @@ def study():
                             ws.cell('%s%s'%(column_letter, (row_index + 1))).value = cell
                 os.remove(uuid + '.csv')
                 del de
-                    
-                    
+
+
     print 'Writing results to Excel...'
     # Remove the default sheet
     ws = wb.get_sheet_by_name('Sheet')

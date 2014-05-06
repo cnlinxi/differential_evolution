@@ -5,6 +5,7 @@ from jde import jDE
 from mixins import LocalSearchMixin
 import numpy
 
+
 class HybridjDE(DECurrentToPBest1BinWithArchive, jDE):
     """
     jDE, hybridised to also inherit strategies, which may be rand/1/bin or
@@ -19,7 +20,7 @@ class HybridjDE(DECurrentToPBest1BinWithArchive, jDE):
         self.strategies = (DECurrentToPBest1BinWithArchive, DERand1Bin)
         for i in xrange(self.population.size):
             self.population.members[i].strategy = i%2
-                
+
     def generateTrialMember(self, i):
         """
         Base f, cr and strategy upon parent member, or regenerate (p=0.1).
@@ -46,11 +47,11 @@ class HybridjDE(DECurrentToPBest1BinWithArchive, jDE):
         trialMember.cr = cr
         trialMember.strategy = strategy
         return trialMember
-        
+
 
 class HybridJADE(JADEWithArchive, jDE):
     """
-    Use the true 'self-adaptive' f change as seen in jDE instead of the 
+    Use the true 'self-adaptive' f change as seen in jDE instead of the
     Lehmer mean.
     """
     def generateTrialMember(self, i):
@@ -67,7 +68,7 @@ class HybridJADE(JADEWithArchive, jDE):
         trialMember.f = fi
         trialMember.cr = cri
         return trialMember
-        
+
 
 class sadJADE(SaDE, JADE):
     """
@@ -82,7 +83,7 @@ class sadJADE(SaDE, JADE):
             self.strategies[i]['crMemory'] = []
             self.strategies[i]['fMemory'] = []
             self.strategies[i]['f'] = 0.5
-            
+
     def generateTrialMember(self, i):
         """
         Closely related to the JADE version
@@ -122,7 +123,7 @@ class sadJADE(SaDE, JADE):
         self.successMemory.append([0] * n)
         self.failureMemory.append([0] * n)
         return super(SaDE, self).generateTrialPopulation(*args, **kwargs)
-        
+
     def trialMemberSuccess(self, i, trialMember):
         """
         Small amendment of the SaDE version.
@@ -131,7 +132,7 @@ class sadJADE(SaDE, JADE):
         self.strategies[trialMember.strategy]['fMemory'].append(trialMember.f)
         self.successMemory[-1][trialMember.strategy] += 1
         super(SaDE, self).trialMemberSuccess(i, trialMember)
-        
+
     def selectNextGeneration(self, trialPopulation, c=0.1):
         """
         Override to include adaptive logic.
@@ -151,7 +152,10 @@ class sadJADE(SaDE, JADE):
                 except:
                     print s
                 self.strategies[i]['fMemory'] = []
-                
-                
+
+
 class LocalJADE(LocalSearchMixin, JADEWithArchive):
+    """
+    Implemented through multiple inheritance.
+    """
     pass

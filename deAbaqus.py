@@ -15,13 +15,14 @@ import os
 import time
 import subprocess
 from glob import glob
-            
+
 def customPrint(text):
     """
     Print to sys.__stderr__ (like Abaqus does).
     """
     sys.__stderr__.write('%s%s'%(text, os.linesep))
     sys.__stderr__.flush()
+
 
 class AbaqusNodeKDTree(spatial.KDTree):
     """
@@ -31,16 +32,16 @@ class AbaqusNodeKDTree(spatial.KDTree):
     closest to a co-ordinate point (x, y, z).
     """
     def __init__(self, nodeObjects, *args, **kwargs):
-        # Split the objects out into two parallel lists: 
+        # Split the objects out into two parallel lists:
         self.labels = [(node.instanceName, node.label) for node in nodeObjects]
         data = [node.coordinates for node in nodeObjects]
         super(AbaqusNodeKDTree, self).__init__(data, *args, **kwargs)
-        
+
     def query(self, x, *args, **kwargs):
         distance, dataIndex = super(AbaqusNodeKDTree, self).query(x, *args, **kwargs)
         return self.labels[dataIndex]
- 
-        
+
+
 class AbaqusJADE(JADEWithArchive):
     """
     Extensions/changes to JADE for use in Abaqus.
@@ -62,25 +63,25 @@ class AbaqusJADE(JADEWithArchive):
         # Assemble kwargs for superclass and call.
         kwargs = {
             'costFile': self.problemClass,
-            'np': np, 
+            'np': np,
             'maxFunctionEvals': maxFunctionEvals
         }
         super(AbaqusJADE, self).__init__(**kwargs)
         # A table for visited nodes and their associated costs / unique run ids.
         # Entries are tuples: visitedNodes[x] = (cost, urid)
         self.visitedNodes = {}
-        
+
     def commutativeVector(self, vector):
         """
         Adjust a vector such that it is sorted by x, y then z.
         """
-        x, y, z = vector[0::3], vector[1::3], vector[2::3] 
+        x, y, z = vector[0::3], vector[1::3], vector[2::3]
         coordinates = zip(x, y, z)
         coordinates.sort()
         # Flatten back into a Numpy array
         vector = numpy.array([el for coord in coordinates for el in coord])
         return vector
-    
+
     def runAndWait(self, jobs):
         """
         Run all jobs and wait for completion.
@@ -102,11 +103,11 @@ class AbaqusJADE(JADEWithArchive):
         for f in glob('*'):
             if 'odb' not in f:
                 os.remove(f)
-        
+
     def assignCosts(self, population):
         """
-        Compute and assign cost function values to each member of the passed 
-        population.Population instance by considering the member vectors. 
+        Compute and assign cost function values to each member of the passed
+        population.Population instance by considering the member vectors.
         Return the modified population.
         """
         # Sort population vectors.
@@ -151,7 +152,7 @@ class AbaqusJADE(JADEWithArchive):
 
     def terminationCriterion(self):
         """
-        Returns True if all of the population have converged on 
+        Returns True if all of the population have converged on
         identical nodes - the only sensible FE termination criterion.
         Also print logging info to stderr, and conduct file I/O operations.
         """
@@ -176,42 +177,42 @@ class AbaqusJADE(JADEWithArchive):
 class AbaqusProblem(object):
     """
     An abstract class to be subclassed in specific Abaqus optimisation problems.
-    
+
     AbaqusProblems must implement methods to get a model, set up an analysis and
     post-process.
 
-    A runAnalysis method is provided, as is a method of translating a
+    Methods to run write input files are provided, as is a method of translating a
     continuous vector to a sequence of nearest nodes (using a KD-Tree).
     A tearDown() method is called at the end of the run.
     """
     numberOfNodes = 1
     absoluteBounds = False
-    
+
     def __init__(self):
         self.baseModel = self.getBaseModel()
         # Get a list of node objects and create a KDTree.
         self.nodes = self.getFeasibleNodes(self.baseModel)
         self.kdTree = AbaqusNodeKDTree(self.nodes)
-        
+
     def getBaseModel(self):
         """
         Subclasses must include this method. It should return an mdb.Model instance.
         """
         raise NotImplementedError
-        
-    def getFeasibleNodes(self, model): 
+
+    def getFeasibleNodes(self, model):
         """
         Subclasses must include this method. It should return a list of MeshNode objects
         representing the feasible region.
         """
         raise NotImplementedError
-        
+
     def getModelCopy(self, urid):
         """
         Return a copy of self.baseModel
         """
         return mdb.Model(name=urid, objectToCopy=self.baseModel)
-        
+
     def getBounds(self):
         """
         Infer the bounds from the problem dimensions.
@@ -221,13 +222,13 @@ class AbaqusProblem(object):
         maximum = numpy.max(coords, axis=0)
         n = self.numberOfNodes
         return n * list(minimum), n * list(maximum)
-        
+
     def setUp(self, nodes, model, urid):
         """
         Based on a sequence of nodes passed, return a model that it is ready to be run.
         """
         raise NotImplementedError
-        
+
     def tearDown(self):
         """
         Called after each run. Include any actions that need to be performed on
@@ -236,7 +237,7 @@ class AbaqusProblem(object):
         for name in mdb.models.keys():
             if name != self.baseModel.name:
                 del mdb.models[name]
-        
+
     def getOdb(self, odbName):
         """
         Try to get an ODB from a file name.
@@ -245,13 +246,13 @@ class AbaqusProblem(object):
             return openOdb(path=odbName)
         except:
             return None
-        
+
     def postProcess(self, odb):
         """
         Should return a scalar cost for the passed ODB.
         """
         raise NotImplementedError
-        
+
     def writeInput(self, model, urid):
         """
         Create an analysis job for the model and write an input file.
@@ -259,7 +260,7 @@ class AbaqusProblem(object):
         job = mdb.Job(name=urid, model=model)
         job.writeInput()
         del mdb.jobs[urid]
-    
+
     def getNodesFromVector(self, vector):
         """
         Any given population vector is a string of xyz coordinates, e.g.
@@ -268,15 +269,14 @@ class AbaqusProblem(object):
         [(x1,y1,z1), (x2,y2,z2), (x3,y3,z3)],
         then returns a tuple (hashable) of nearest nodes.
         """
-        x, y, z = vector[0::3], vector[1::3], vector[2::3] 
+        x, y, z = vector[0::3], vector[1::3], vector[2::3]
         coordinates = zip(x, y, z)
         nodes = [self.kdTree.query(coord) for coord in coordinates]
         return tuple(nodes)
-                    
+
     def cost(self, x):
         """
         Here only to provide API consistency with continuous DE.
         Will be ignored by Abaqus DE.
         """
         pass
-        

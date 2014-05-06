@@ -1,22 +1,23 @@
 import numpy
 
 """
-This file describes a population, as used in a 
+This file describes a population, as used in a
 general class of evolutionary algorithm (EA).
 """
+
 
 class Member(object):
     """
     A member of a population has a vector and an associated cost
     (initialised to infinity).
     Other attributes may be added as necessary.
-    Also provides a 'constrain' method to brick-wall constrain 
+    Also provides a 'constrain' method to brick-wall constrain
     the member's vector within a boundary.
     """
     def __init__(self, vector):
         self.cost = numpy.inf
         self.vector = numpy.asarray(vector)
-        
+
     def constrain(self, minVector=None, maxVector=None, sequential=False, bind=True):
         """
         Adjust a member's vector to comply with bounding/sequential constraints
@@ -30,7 +31,7 @@ class Member(object):
         if sequential:
             v = numpy.sort(v)
         self.vector = v
-        
+
     def __str__(self):
         """
         String representation of the member.
@@ -38,7 +39,7 @@ class Member(object):
         vector = numpy.around(self.vector, 2)
         cost = numpy.around(self.cost, 5)
         return '%s (cost %s)'%(vector, cost)
-        
+
 
 class Population(object):
     """
@@ -64,7 +65,7 @@ class Population(object):
             mean = numpy.mean(numpy.column_stack((minVector, maxVector)), axis=1)
             range = maxVector - minVector
             # A blank container to hold the population whilst constructing
-            self.members = [] 
+            self.members = []
             for i in xrange(size):
                 # A random vector in the range -0.5 - 0.5
                 vector = numpy.random.rand(len(minVector)) - 0.5
@@ -76,55 +77,54 @@ class Population(object):
                     vector = numpy.sort(vector)
                 # Add the fully-constructed vector to the population
                 self.members.append(Member(vector))
-        
+
     @property
     def size(self):
         return len(self.members)
-        
+
     @property
     def vectors(self):
         return [member.vector for member in self.members]
-        
+
     @property
     def vectorArray(self):
         vectors = numpy.array(self.vectors)
         return numpy.column_stack(vectors)
-    
-    @property 
+
+    @property
     def costs(self):
         return [member.cost for member in self.members]
-        
+
     @property
     def mean(self):
         return numpy.mean(self.vectorArray, axis=1)
-        
+
     @property
     def standardDeviation(self):
         return numpy.std(self.vectorArray, axis=1)
 
     @property
-    def bestVectorIndex(self): 
+    def bestVectorIndex(self):
         """
         Get the index of the best-performing member of the population
         """
-        return min(xrange(len(self.costs)), key=self.costs.__getitem__) 
-        
-    @property    
+        return min(xrange(len(self.costs)), key=self.costs.__getitem__)
+
+    @property
     def worstVectorIndex(self):
         """
         Get the index of the best-performing member of the population
         """
         return max(xrange(len(self.costs)), key=self.costs.__getitem__)
-        
+
     @property
     def bestVector(self):
         return self.members[self.bestVectorIndex]
-        
+
     @property
     def worstVector(self):
         return self.members[self.worstVectorIndex]
-        
+
     def __str__(self):
         return 'Population: size=%s, mean=%s, std=%s'%(self.size,
             self.mean, self.standardDeviation)
-        
