@@ -195,7 +195,7 @@ class DERand1Bin(object):
         # A generation counter is provided for future extensibility,
         # but is not used by basic DE.
         self.generation = 0
-        while self.terminationCriterion() is False:
+        while self.terminationCriterion() == False:
             self.generation += 1
             # Generate (mutate/crossover) a trial population
             trialPopulation = self.generateTrialPopulation(self.population.size)

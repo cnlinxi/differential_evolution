@@ -1,5 +1,6 @@
 import csv
 import population
+from multiprocessing import Pool, cpu_count
 
 """
 Mixins can be included with any DE algorithm in this suite (unless otherwise

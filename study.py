@@ -53,10 +53,8 @@ def study():
         print 'Testing %s'%(problem_descr)
         for Algorithm in algorithms:
             problem_id = '%s_%s'%(problem_descr, Algorithm.__name__)
-
             class DE(ValueToReachMixin, LoggingMixin, Algorithm):
                 pass
-
             if '30d' in problem_id:
                 mfe = 100000
                 if "--parallel" in sys.argv:
