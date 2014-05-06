@@ -24,8 +24,8 @@ class TestPopulation(unittest.TestCase):
 
     def test_membersWithinBoundary(self):
         for member in self.population.members:
-             aboveLower = all(member.vector[i] > self.boundaryConstraints[0][i] for i in xrange(self.dimensionality))
-             belowUpper = all(member.vector[i] < self.boundaryConstraints[1][i] for i in xrange(self.dimensionality))
+            aboveLower = all(member.vector[i] > self.boundaryConstraints[0][i] for i in xrange(self.dimensionality))
+            belowUpper = all(member.vector[i] < self.boundaryConstraints[1][i] for i in xrange(self.dimensionality))
         self.assertTrue(aboveLower and belowUpper)
 
     def test_memberCostsSetToInf(self):

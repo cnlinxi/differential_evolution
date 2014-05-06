@@ -20,21 +20,21 @@ termination criteria, crossover techniques etc.) can be implemented as mix-ins.
 
 class DERand1Bin(object):
     """
-    This is 'classic' DE as outlined in Storn and Price's "Differential Evolution:
-    A Practical Approach to Global Optimization".
+    This is 'classic' DE as outlined in Storn and Price's "Differential
+    Evolution: A Practical Approach to Global Optimization".
     """
 
     def __init__(self, costFile, np=50, f=0.8, cr=0.9, maxFunctionEvals=50000):
         """
-        This function is called when the DifferentialEvolution class is instantiated.
-        A 'costFile' must be passed: this should be an included Python module
-        containing the following methods:
+        This function is called when the DifferentialEvolution class is
+        instantiated. A 'costFile' must be passed: this should be an included
+        Python module containing the following methods:
 
         - cost(x): returning a scalar when passed a single vector argument x
         - getBounds(): returning a tuple, length 2, of the initialisation region.
 
-        A Boolean 'absoluteBounds' may optionally be set. If this is True, mutations
-        outside the initialisation region will be banned.
+        A Boolean 'absoluteBounds' may optionally be set. If this is True,
+         mutations outside the initialisation region will be banned.
 
         Control parameters np (population size), f (mutation scaling factor) and
         cr (crossover ratio) can be specified, or left as the 'standard' values
@@ -53,7 +53,7 @@ class DERand1Bin(object):
         self.phantomIndices = []
         vectorDifference = numpy.array(self.maxVector) - numpy.array(self.minVector)
         for i, x in enumerate(vectorDifference):
-            if x==0:
+            if x == 0:
                 self.phantomIndices.append(i)
         # Initialise population randomly within the boundaries.
         self.population = population.Population(
@@ -195,7 +195,7 @@ class DERand1Bin(object):
         # A generation counter is provided for future extensibility,
         # but is not used by basic DE.
         self.generation = 0
-        while self.terminationCriterion() == False:
+        while self.terminationCriterion() is False:
             self.generation += 1
             # Generate (mutate/crossover) a trial population
             trialPopulation = self.generateTrialPopulation(self.population.size)

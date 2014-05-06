@@ -35,14 +35,16 @@ class DECurrentToRand1(DECurrentToPBest1Bin):
 
     def crossover(self, parentIndex, mutant, cr):
         """
-        This algorithm does not implement crossover to retain rotational invariance.
+        This algorithm does not implement crossover to retain rotational
+        invariance.
         """
         return mutant
 
 
 class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
     """
-    An implementation of Qin et al.'s Self-adaptive Differential Evolution (SaDE).
+    An implementation of Qin et al.'s Self-adaptive Differential Evolution
+    (SaDE).
     """
 
     def __init__(self, *args, **kwargs):
@@ -101,7 +103,8 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
     def _stochasticUniversalSampleStrategies(self):
         """
         Returns a randomised list of NP strategy indices, sampled using the
-        Stochastic Universal Sampling technique, weighted by strategy probability.
+        Stochastic Universal Sampling technique, weighted by strategy
+        probability.
         """
         # Assemble the sampling thresholds
         thresholds = []
@@ -112,7 +115,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         # Collect the sample
         sample = []
         interval = (1 / float(self.population.size))
-        pointer =  interval * numpy.random.rand()
+        pointer = interval * numpy.random.rand()
         while pointer < cumulativeProbability:
             for i, t in enumerate(thresholds):
                 if pointer < t:
@@ -122,10 +125,10 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         numpy.random.shuffle(sample)
         return sample
 
-
     def _computeCrMedians(self):
         """
-        Establish the median successful cr for each strategy in the last lp generations.
+        Establish the median successful cr for each strategy in the last lp
+        generations.
         """
         for i, strategy in enumerate(self.strategies):
             flattenedCr = list(itertools.chain.from_iterable(strategy['crMemory']))

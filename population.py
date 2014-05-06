@@ -43,8 +43,8 @@ class Member(object):
 
 class Population(object):
     """
-    A group of Members, associated with statistical parameters such as
-    mean and standard deviation, and methods to randomly (re)generate the Members.
+    A group of Members, associated with statistical parameters such as mean
+    and standard deviation, and methods to randomly (re)generate the Members.
     """
     def __init__(self, size=None, boundaries=None, sequential=False, members=None):
         """

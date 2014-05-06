@@ -16,6 +16,7 @@ import time
 import subprocess
 from glob import glob
 
+
 def customPrint(text):
     """
     Print to sys.__stderr__ (like Abaqus does).
@@ -93,7 +94,8 @@ class AbaqusJADE(JADEWithArchive):
         output = 'abaqus'
         while 'abaqus' in output:
             time.sleep(1)
-            p = subprocess.Popen('Qstat',stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+            p = subprocess.Popen('Qstat', stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE)
             output, errors = p.communicate()
 
     def cleanFolder(self):
@@ -135,8 +137,8 @@ class AbaqusJADE(JADEWithArchive):
         # Evaluate once complete.
         for nodes, urid in sorted(toDo.iteritems()):
             odb = self.problemClass.getOdb('%s.odb'%(urid))
-            # There is a small chance that the analysis may have failed due to a licence
-            # or memory error. Skip this case.
+            # There is a small chance that the analysis may have failed due to a
+            # licence or memory error. Skip this case.
             try:
                 cost = self.problemClass.postProcess(odb)
                 odb.close()
@@ -164,7 +166,7 @@ class AbaqusJADE(JADEWithArchive):
         customPrint('  Worst population vector: %s'%(worst))
         customPrint('  URID of best vector: %s'%(best.urid))
         customPrint('  URIDs in population: ' + \
-                ', '.join(sorted(list(set(x.urid for x in self.population.members if x.urid != None)))))
+                ', '.join(sorted(list(set(x.urid for x in self.population.members if x.urid is not None)))))
         customPrint('  Standard Deviation of vectors: %s'%(self.population.standardDeviation))
         customPrint('  Mean control parameters: f=%s, cr=%s'%(self.f, self.cr))
         # File I/O
@@ -202,8 +204,8 @@ class AbaqusProblem(object):
 
     def getFeasibleNodes(self, model):
         """
-        Subclasses must include this method. It should return a list of MeshNode objects
-        representing the feasible region.
+        Subclasses must include this method. It should return a list of MeshNode
+        objects representing the feasible region.
         """
         raise NotImplementedError
 

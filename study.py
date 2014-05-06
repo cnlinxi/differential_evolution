@@ -1,4 +1,6 @@
-import openpyxl, string, testFunctions
+import openpyxl
+import string
+import testFunctions
 from openpyxl.cell import get_column_letter
 from deBase import DERand1Bin, DECurrentToPBest1Bin
 from jade import JADEWithArchive as JADE
@@ -20,6 +22,7 @@ The results are exported to Microsoft Excel.
 """
 
 ALPHABET = string.uppercase
+
 
 def study():
     if "--file" in sys.argv:
@@ -50,8 +53,10 @@ def study():
         print 'Testing %s'%(problem_descr)
         for Algorithm in algorithms:
             problem_id = '%s_%s'%(problem_descr, Algorithm.__name__)
+
             class DE(ValueToReachMixin, LoggingMixin, Algorithm):
                 pass
+
             if '30d' in problem_id:
                 mfe = 100000
                 if "--parallel" in sys.argv:
@@ -86,13 +91,11 @@ def study():
                 os.remove(uuid + '.csv')
                 del de
 
-
     print 'Writing results to Excel...'
     # Remove the default sheet
     ws = wb.get_sheet_by_name('Sheet')
     wb.remove_sheet(ws)
     wb.save(wb_name)
-
 
 if __name__ == '__main__':
     study()

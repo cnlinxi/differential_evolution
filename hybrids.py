@@ -114,7 +114,7 @@ class sadJADE(SaDE, JADE):
         Add a new row to the success and failure memories (old ones are
         deleted automatically by the deque).
         """
-        # n = number of strategies in use. Called multiple times in this function.
+        # n = # of strategies in use. Called multiple times in this function.
         n = len(self.strategies)
         if self.generation > self.lp:
             self._updateStrategyProbabilities()
