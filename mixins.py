@@ -7,6 +7,30 @@ specified) to modify or extend their functionality in some way.
 """
 
 
+class ParallelCostMixin(object):
+    """
+    A mixin to allow the cost function to be evaluated on parallel CPUs.
+    """
+            
+    def computeCosts(self, vectors):
+        """
+        Overridden to use the parallel map function
+        """
+        return self.pool.map(self.cost, vectors)
+        
+    def optimise(self, *args, **kwargs):
+        """
+        Extend the optimise function to start up and shut down a pool of workers.
+        """
+        cpus = cpu_count()
+        # A pool will, with no arguments, contain 'cpu_count' workers.
+        # The argument was included to be more explicit.
+        self.pool = Pool(cpus)
+        bestVector = super(ParallelCostMixin, self).optimise(*args, **kwargs)
+        self.pool.terminate()
+        return bestVector
+
+
 class LoggingMixin(object):
     """
     Exports key solution data to CSV.

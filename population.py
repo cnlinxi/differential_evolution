@@ -1,9 +1,9 @@
+import numpy
+
 """
 This file describes a population, as used in a 
 general class of evolutionary algorithm (EA).
 """
-
-import numpy
 
 class Member(object):
     """

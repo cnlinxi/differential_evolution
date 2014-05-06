@@ -1,9 +1,0 @@
-rm -rf *.com
-rm -rf *.dat
-rm -rf *.log
-rm -rf *.prt
-rm -rf *.sim
-rm -rf *.sta
-rm -rf *.odb
-rm -rf *.msg
-rm -rf abaqus*

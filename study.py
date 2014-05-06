@@ -6,7 +6,6 @@ from sade import SaDE
 from jde import jDE
 from hybrids import LocalJADE, HybridJADE, HybridjDE, sadJADE
 from mixins import LoggingMixin, ParallelCostMixin, ValueToReachMixin
-ALPHABET = string.uppercase
 import time
 import os
 import csv
@@ -20,11 +19,12 @@ running them repeatedly on the test functions defined in testFunctions folder.
 The results are exported to Microsoft Excel.
 """
 
+ALPHABET = string.uppercase
 
 def study():
     if "--file" in sys.argv:
         f = open('study.out', 'w')
-    algorithms = [LocalJADE]#[DERand1Bin, jDE, SaDE, JADE]
+    algorithms = [DERand1Bin, jDE, SaDE, JADE]
     repeats = int(sys.argv[1])
     # Initialise Excel workbook
     wb = openpyxl.Workbook()

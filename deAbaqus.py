@@ -69,8 +69,6 @@ class AbaqusJADE(JADEWithArchive):
         # A table for visited nodes and their associated costs / unique run ids.
         # Entries are tuples: visitedNodes[x] = (cost, urid)
         self.visitedNodes = {}
-        # A list of best-so-far urids, used for file I/O
-        self.bestSoFarUrids = []
         
     def commutativeVector(self, vector):
         """
@@ -82,6 +80,28 @@ class AbaqusJADE(JADEWithArchive):
         # Flatten back into a Numpy array
         vector = numpy.array([el for coord in coordinates for el in coord])
         return vector
+    
+    def runAndWait(self, jobs):
+        """
+        Run all jobs and wait for completion.
+        This function is unique to TUOS Iceberg.
+        """
+        for urid in jobs:
+            os.system('qsub -j y -l h_rt=01:00:00 -l mem=16G -l rmem=8G /usr/local/bin/abaqus611job job=%s interactive cpus=1'%(urid))
+        # Wait for completion
+        output = 'abaqus'
+        while 'abaqus' in output:
+            time.sleep(1)
+            p = subprocess.Popen('Qstat',stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+            output, errors = p.communicate()
+
+    def cleanFolder(self):
+        """
+        Remove non-ODB files from working directory
+        """
+        for f in glob('*'):
+            if 'odb' not in f:
+                os.remove(f)
         
     def assignCosts(self, population):
         """
@@ -97,7 +117,10 @@ class AbaqusJADE(JADEWithArchive):
         for i, member in enumerate(population.members):
             nodes = self.problemClass.getNodesFromVector(member.vector)
             population.members[i].nodes = nodes
-            if (nodes not in toDo) and (nodes not in self.visitedNodes):
+            # Check for uniqueness of nodes. Allocate penalty cost if neccesary.
+            if len(set(nodes)) != self.problemClass.numberOfNodes:
+                self.visitedNodes[nodes] = (numpy.inf, None)
+            elif (nodes not in toDo) and (nodes not in self.visitedNodes):
                 urid = 'de_%s'%(self.functionEvaluations)
                 self.functionEvaluations += 1
                 toDo[nodes] = urid
@@ -107,20 +130,18 @@ class AbaqusJADE(JADEWithArchive):
             testModel = self.problemClass.setUp(nodes, urid, model)
             self.problemClass.writeInput(testModel, urid)
             self.problemClass.tearDown()
-            # THIS LINE IS UNIQUE TO TUOS ICEBERG!
-            os.system('qsub -j y -l h_rt=01:00:00 -l mem=12G /usr/local/bin/abaqus611job job=%s interactive cpus=1'%(urid))
-        # Wait for completion
-        output = 'abaqus'
-        while 'abaqus' in output:
-            time.sleep(1)
-            # THIS LINE IS ALSO UNIQUE TO TUOS ICEBERG!
-            p = subprocess.Popen('Qstat',stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-            output, errors = p.communicate()
+        self.runAndWait(toDo.values())
         # Evaluate once complete.
         for nodes, urid in sorted(toDo.iteritems()):
             odb = self.problemClass.getOdb('%s.odb'%(urid))
-            cost = self.problemClass.postProcess(odb)
-            odb.close()
+            # There is a small chance that the analysis may have failed due to a licence
+            # or memory error. Skip this case.
+            try:
+                cost = self.problemClass.postProcess(odb)
+                odb.close()
+            except:
+                cost = numpy.inf
+                customPrint('Aborting %s'%(urid))
             self.visitedNodes[nodes] = (cost, urid)
         # Assign costs and unique run ids to members based on nodes
         for i, member in enumerate(population.members):
@@ -134,25 +155,20 @@ class AbaqusJADE(JADEWithArchive):
         identical nodes - the only sensible FE termination criterion.
         Also print logging info to stderr, and conduct file I/O operations.
         """
-        bestSoFarUrid = self.population.bestVector.urid
-        self.bestSoFarUrids.append(bestSoFarUrid)
         # Print logging info
+        best = self.population.members[self.population.bestVectorIndex]
+        worst = self.population.members[self.population.worstVectorIndex]
         customPrint('At generation %s'%(self.generation))
-        customPrint('  Best-so-far vector: %s'%(self.population.bestVector))
-        customPrint('  URID of best vector: %s'%(bestSoFarUrid))
+        customPrint('  Best-so-far vector: %s'%(best))
+        customPrint('  Worst population vector: %s'%(worst))
+        customPrint('  URID of best vector: %s'%(best.urid))
+        customPrint('  URIDs in population: ' + \
+                ', '.join(sorted(list(set(x.urid for x in self.population.members if x.urid != None)))))
         customPrint('  Standard Deviation of vectors: %s'%(self.population.standardDeviation))
         customPrint('  Mean control parameters: f=%s, cr=%s'%(self.f, self.cr))
         # File I/O
-        allFiles = glob('*')
-        for f in allFiles:
-            for urid in self.bestSoFarUrids:
-                if '%s.'%(urid) in f:
-                    # Remove this file from the to-delete list
-                    allFiles.remove(f)
-                    break
-        for f in allFiles:
-            os.remove(f)
-        # Termination criterion
+        self.cleanFolder()
+        # Termination criteria
         solutions = set([member.nodes for member in self.population.members])
         return len(solutions) == 1
 
@@ -169,7 +185,7 @@ class AbaqusProblem(object):
     A tearDown() method is called at the end of the run.
     """
     numberOfNodes = 1
-    absoluteBounds = True
+    absoluteBounds = False
     
     def __init__(self):
         self.baseModel = self.getBaseModel()
@@ -223,9 +239,12 @@ class AbaqusProblem(object):
         
     def getOdb(self, odbName):
         """
-        Get an ODB from a file name.
+        Try to get an ODB from a file name.
         """
-        return openOdb(path=odbName)
+        try:
+            return openOdb(path=odbName)
+        except:
+            return None
         
     def postProcess(self, odb):
         """
@@ -235,8 +254,7 @@ class AbaqusProblem(object):
         
     def writeInput(self, model, urid):
         """
-        Create an analysis job for the model and submit it.
-        Return an odb object.
+        Create an analysis job for the model and write an input file.
         """
         job = mdb.Job(name=urid, model=model)
         job.writeInput()

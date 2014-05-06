@@ -13,6 +13,8 @@ class DECurrentToPBest1BinWithArchive(DECurrentToPBest1Bin):
         super(DECurrentToPBest1BinWithArchive, self).__init__(*args, **kwargs)
         # Archive is implemented here as a double-ended queue (deque).
         # As it overflows beyond np, the oldest items will be deleted.
+        # The original JADE simply deleted items at random. The archive 
+        # itself may also be tournament-selected.
         self.archive = deque(maxlen=self.population.size)
         
     def mutation(self, i, f, n=1, k=None, p=0.05):

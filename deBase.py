@@ -3,7 +3,7 @@ import numpy
 import population
 
 """
-Blake Hemingway, University of Sheffield, 2014
+Blake Hemingway, University of Sheffield, May 2014
 
 Differential Evolution (DE) is an optimisation algorithm that minimises 
 an n-dimensional cost function using a population-based approach.

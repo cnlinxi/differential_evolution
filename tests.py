@@ -53,14 +53,6 @@ class TestPopulation(unittest.TestCase):
         self.assertEqual(self.population.worstVectorIndex, rand)
         
     """ Tests for methods """
-    def test_reinitialise(self):
-        prevGen = copy.deepcopy(self.population.members)
-        self.population.reinitialise()
-        newGen = self.population.members
-        membersChanged = prevGen != newGen
-        sameLength = len(prevGen) == len(newGen)
-        self.assertTrue(membersChanged and sameLength)
-        
     def test_constrain(self):
         member = Member([10, 6, 3])
         min = [4, 4, 4]
