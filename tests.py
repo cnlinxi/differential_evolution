@@ -24,8 +24,8 @@ class TestPopulation(unittest.TestCase):
 
     def test_membersWithinBoundary(self):
         for member in self.population.members:
-            aboveLower = all(member.vector[i] > self.boundaryConstraints[0][i] for i in xrange(self.dimensionality))
-            belowUpper = all(member.vector[i] < self.boundaryConstraints[1][i] for i in xrange(self.dimensionality))
+            aboveLower = all(member.vector[i] > self.boundaryConstraints[0][i] for i in range(self.dimensionality))
+            belowUpper = all(member.vector[i] < self.boundaryConstraints[1][i] for i in range(self.dimensionality))
         self.assertTrue(aboveLower and belowUpper)
 
     def test_memberCostsSetToInf(self):
@@ -47,7 +47,7 @@ class TestPopulation(unittest.TestCase):
         self.assertEqual(self.population.bestVectorIndex, rand)
 
     def test_worstVectorIndex(self):
-        for i in xrange(self.populationSize):
+        for i in range(self.populationSize):
             self.population.members[i].cost = 0
         rand = np.random.randint(self.populationSize)
         self.population.members[rand].cost = 50

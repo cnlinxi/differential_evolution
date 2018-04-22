@@ -13,12 +13,13 @@ class jDE(DERand1Bin):
         Extend to encode random f and cr values onto each member of the population.
         """
         super(jDE, self).__init__(*args, **kwargs)
-        for i in xrange(self.population.size):
+        for i in range(self.population.size):
             self.population.members[i].f = 0.1 + 0.9 * numpy.random.rand()
             self.population.members[i].cr = numpy.random.rand()
 
     def generateTrialMember(self, i):
         """
+        生成第i个个体变异重组后的个体
         Base f and cr upon parent member, or regenerate (p=0.1).
         """
         # Pick f and cr

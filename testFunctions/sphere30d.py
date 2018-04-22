@@ -8,7 +8,7 @@ f(x*) = 0.0; x*=(0,0,...,0)
 '''
 def cost(x):
     value = 0
-    for i in xrange(len(x)):
+    for i in range(len(x)):
         value += x[i] * x[i]
     return value
     

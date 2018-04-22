@@ -1,7 +1,7 @@
 import openpyxl
 import string
 import testFunctions
-from openpyxl.cell import get_column_letter
+from openpyxl.utils import get_column_letter
 from deBase import DERand1Bin, DECurrentToPBest1Bin
 from jade import JADEWithArchive as JADE
 from sade import SaDE
@@ -21,17 +21,25 @@ running them repeatedly on the test functions defined in testFunctions folder.
 The results are exported to Microsoft Excel.
 """
 
-ALPHABET = string.uppercase
+# ALPHABET = string.uppercase
 
+'''python study.py <repeat_num> --problem <problem_id> --file --parallel
+<repeat_num>:int, 训练次数
+<problem_id>:f1-10d/f1-30d/f2-10d/..., 本文件中problems:dict 中的键
+--file 将运行信息输出到study.out文件中
+--parallel 使用CPU并行
+'''
 
 def study():
     if "--file" in sys.argv:
         f = open('study.out', 'w')
     algorithms = [DERand1Bin, jDE, SaDE, JADE]
-    repeats = int(sys.argv[1])
+    repeats = int(sys.argv[1]) # 第一个参数，必须参数
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
-    wb_name = 'DE_Tests_%s.xlsx'%(time.strftime('%d-%m-%Y__%H:%M'))
+    file_id=str(time.strftime('%d-%m-%Y_%H_%M'))
+    wb_name = f'DE_Tests_{file_id}.xlsx'
+    print('wb_name:',wb_name)
     worksheets = {}
     # Run the tests
     problems = {
@@ -49,38 +57,38 @@ def study():
         i = sys.argv.index("--problem")
         p = sys.argv[i+1]
         problems = {p: problems[p]}
-    for problem_descr, problem in sorted(problems.iteritems()):
-        print 'Testing %s'%(problem_descr)
+    for problem_descr, problem in sorted(problems.items()):
+        print('Testing %s'%(problem_descr))
         for Algorithm in algorithms:
             problem_id = '%s_%s'%(problem_descr, Algorithm.__name__)
             class DE(ValueToReachMixin, LoggingMixin, Algorithm):
                 pass
             if '30d' in problem_id:
-                mfe = 100000
+                mfe = 100000 # 在30d上运行1e5
                 if "--parallel" in sys.argv:
                     class DE(ParallelCostMixin, ValueToReachMixin, LoggingMixin, Algorithm):
                         pass
-                    print '\nParallel Processing on %s CPUs\n'%(multiprocessing.cpu_count())
+                    print('\nParallel Processing on %s CPUs\n'%(multiprocessing.cpu_count()))
                     if "--file" in sys.argv:
                         f.write('\nParallel Processing on %s CPUs\n\n'%(multiprocessing.cpu_count()))
             else:
-                mfe = 50000
+                mfe = 50000 # 在其它问题维数运行5e4
             worksheets[problem_id] = wb.create_sheet()
             ws = worksheets[problem_id]
             ws.title = problem_id
             failures = 0
-            for i in xrange(repeats):
+            for i in range(repeats):
                 # Run the optimisation
-                uuid = str(problem_id) + str(i)
+                uuid = str(problem_id) + str(i) # 由problem_id(=problem_descripion+algorithm)+i(第i次训练)
                 de = DE(costFile=problem, uuid=uuid, valueToReach=1e-6, maxFunctionEvals=mfe)
                 run_name = '- Run %s with %s'%(i+1, problem_id)
-                print run_name
+                print(run_name)
                 bestVector = de.optimise()
-                print bestVector
+                print('bestVector:',bestVector)
                 if "--file" in sys.argv:
                     f.write('%s\n%s\n\n'%(run_name, bestVector))
                 # Dump convergence history
-                with open(uuid + '.csv', 'rb') as csvfile:
+                with open(uuid + '.csv', 'r') as csvfile:
                     reader = csv.reader(csvfile)
                     for row_index, row in enumerate(reader):
                         for column_index, cell in enumerate(row):
@@ -89,7 +97,7 @@ def study():
                 os.remove(uuid + '.csv')
                 del de
 
-    print 'Writing results to Excel...'
+    print('Writing results to Excel...')
     # Remove the default sheet
     ws = wb.get_sheet_by_name('Sheet')
     wb.remove_sheet(ws)

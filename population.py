@@ -63,14 +63,14 @@ class Population(object):
             minVector = numpy.asarray(minVector)
             maxVector = numpy.asarray(maxVector)
             mean = numpy.mean(numpy.column_stack((minVector, maxVector)), axis=1)
-            range = maxVector - minVector
+            vec_range = maxVector - minVector
             # A blank container to hold the population whilst constructing
             self.members = []
-            for i in xrange(size):
+            for i in range(size):
                 # A random vector in the range -0.5 - 0.5
                 vector = numpy.random.rand(len(minVector)) - 0.5
                 # Manipulate it so that it meets the specified min/max conditions
-                vector *= range
+                vector *= vec_range
                 vector += mean
                 # Enforce sequential constraints if applicable
                 if sequential:
@@ -108,14 +108,14 @@ class Population(object):
         """
         Get the index of the best-performing member of the population
         """
-        return min(xrange(len(self.costs)), key=self.costs.__getitem__)
+        return min(range(len(self.costs)), key=self.costs.__getitem__)
 
     @property
     def worstVectorIndex(self):
         """
         Get the index of the best-performing member of the population
         """
-        return max(xrange(len(self.costs)), key=self.costs.__getitem__)
+        return max(range(len(self.costs)), key=self.costs.__getitem__)
 
     @property
     def bestVector(self):

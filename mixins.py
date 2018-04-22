@@ -48,10 +48,10 @@ class LoggingMixin(object):
         to log key solution data from that generation.
         """
         super(LoggingMixin, self).selectNextGeneration(*args, **kwargs)
-        with open(self.csvFilename, 'ab') as csvfile:
+        with open(self.csvFilename, 'a') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([self.functionEvaluations,
-                self.population.bestVector.cost, self.cr, self.f])
+                             self.population.bestVector.cost, self.cr, self.f])
 
 
 class ValueToReachMixin(object):

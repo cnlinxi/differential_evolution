@@ -8,7 +8,7 @@ f(x*) = 0.0; x*=(1,1,...,1)
 '''
 def cost(x):
     value = 0
-    for i in xrange(len(x) - 1):
+    for i in range(len(x) - 1):
         value += (1-x[i])**2 + 100*(x[i+1] - x[i]**2)**2
     return value
 

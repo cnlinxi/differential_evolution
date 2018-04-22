@@ -88,6 +88,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
 
     def _updateStrategyProbabilities(self):
         """
+        更新变异策略
         Update the probability of each strategy being selected by examining the
         contents of the success and failure memories.
         """
@@ -97,7 +98,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         unscaledProbabilities = [(s / denominator) + 0.01 for s in successes]
         # We want the probabilities scaled to 1.
         scalingFactor = 1 / sum(unscaledProbabilities)
-        for i in xrange(len(self.strategies)):
+        for i in range(len(self.strategies)):
             self.strategies[i]['probability'] = unscaledProbabilities[i] * scalingFactor
 
     def _stochasticUniversalSampleStrategies(self):
@@ -174,7 +175,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
         # Augment all memories
         self.successMemory.append([0] * n)
         self.failureMemory.append([0] * n)
-        for i in xrange(n):
+        for i in range(n):
             self.strategies[i]['crMemory'].append([])
         return super(SaDE, self).generateTrialPopulation(*args, **kwargs)
 

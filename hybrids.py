@@ -18,7 +18,7 @@ class HybridjDE(DECurrentToPBest1BinWithArchive, jDE):
         """
         super(HybridjDE, self).__init__(*args, **kwargs)
         self.strategies = (DECurrentToPBest1BinWithArchive, DERand1Bin)
-        for i in xrange(self.population.size):
+        for i in range(self.population.size):
             self.population.members[i].strategy = i%2
 
     def generateTrialMember(self, i):
@@ -79,7 +79,7 @@ class sadJADE(SaDE, JADE):
         SaDE's (NOT JADEs) init, but with slightly modified strategy memories.
         """
         SaDE.__init__(self, *args, **kwargs)
-        for i in xrange(len(self.strategies)):
+        for i in range(len(self.strategies)):
             self.strategies[i]['crMemory'] = []
             self.strategies[i]['fMemory'] = []
             self.strategies[i]['f'] = 0.5
@@ -142,7 +142,7 @@ class sadJADE(SaDE, JADE):
         super(SaDE, self).selectNextGeneration(trialPopulation)
         # Update f and cr according to any successes. Note the use of the
         # Lehmer mean to give more weight to large f.
-        for i in xrange(len(self.strategies)):
+        for i in range(len(self.strategies)):
             s = self.strategies[i]
             if s['crMemory'] and s['fMemory']:
                 self.strategies[i]['cr'] = (1 - c) * s['cr'] + c * numpy.mean(s['crMemory'])
@@ -150,7 +150,7 @@ class sadJADE(SaDE, JADE):
                 try:
                     self.strategies[i]['f'] = (1 - c) * s['f'] + c * self._lehmerMean(s['fMemory'])
                 except:
-                    print s
+                    print(s)
                 self.strategies[i]['fMemory'] = []
 
 

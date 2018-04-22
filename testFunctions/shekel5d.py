@@ -46,9 +46,9 @@ c = [
 
 def cost(x):
     sum = 0
-    for i in xrange(30):
+    for i in range(30):
         sp=0
-        for j in xrange(5):
+        for j in range(5):
             h=x[j]-a[i][j]
             sp+=h*h
         sum-=1.0/(sp+c[i])

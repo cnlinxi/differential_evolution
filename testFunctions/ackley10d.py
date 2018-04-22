@@ -11,7 +11,7 @@ import numpy
 def cost(x):
     sum1, sum2 = 0, 0
     dimensions = len(x)
-    for i in xrange(len(x)):
+    for i in range(len(x)):
         sum1 += x[i]*x[i]
         sum2 += numpy.cos(2.*numpy.pi*x[i])
     sum1 = sum1 / float(dimensions)
