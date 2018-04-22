@@ -69,6 +69,7 @@ class rlde(DECurrentToPBest1Bin):
         self.fitness_decay_weight=1e-8 # 适应值降低奖赏
         self.actions_count=9 # 动作个数
         self.actions=list(range(self.actions_count))
+        self.action=0
         self.lr=0.01 # 学习率
         self.gamma=0.9 # 奖励衰减，使得算法能够看清大局
         self.epsilon=0.9 # 贪婪度
@@ -148,7 +149,7 @@ class rlde(DECurrentToPBest1Bin):
         for i in range(self.change_size):
             p_best_vector = self.population.members[p_best_index[i]].vector
             for index,ele in p_best_vector: # 轻微扰动
-                p_best_vector[index]+=np.random.uniform(-5,5)
+                p_best_vector[index]+=np.random.uniform(-1.0/pow(1.0001,self.functionEvaluations),1.0/pow(1.0001,self.functionEvaluations))
             best_vectors.append(p_best_vector)
         self.population = np.append(self.population, np.array(best_vectors), axis=0)
 
@@ -156,7 +157,6 @@ class rlde(DECurrentToPBest1Bin):
         if not (self.population.size < self.Ubound and self.population.size > self.Lbound):  # 当self.population_size 小于种群上界且大于种群上界
             return
         max_p_worst_index=np.ceil(self.p*self.population.size)
-        worst_vector=[]
         p_worst_index=np.random.permutation(max_p_worst_index)
         p_worst_index=[x for x in p_worst_index if x!=0]
         for i in range(self.change_size):
@@ -165,3 +165,71 @@ class rlde(DECurrentToPBest1Bin):
                 if (ele==p_worst_vector).any(axis=0):
                     self.population=np.delete(self.population,index,axis=0) # 删除平庸个体
                     # break #break掉，防止删除多个相同的population
+
+    def substract_f(self):
+        if self.f>0:
+            self.f-=0.1
+
+    def add_f(self):
+        if self.f<2.0:
+            self.f+=0.1
+
+    def choose_action(self,state):
+        self.check_state_exist(state)
+        if np.random.uniform()<self.epsilon:
+            state_action=self.q_table.loc[state,:]
+            state_action=state_action.reindex(np.random.permutation(state_action.index)) #重置dataframe的索引（索引随机分配）
+            action=state_action.idxmax()
+        else:
+            action=np.random.choice(self.actions)
+        return action
+
+    def check_state_exist(self,state):
+        if state not in self.q_table.index:
+            self.q_table=self.q_table.append(
+                pd.Series(
+                    [0]*len(self.actions),
+                    index=self.q_table.columns,
+                    name=state
+                )
+            )
+
+    def update_population(self):
+        # state=(self.nm,sedlf.rm,self.um,self.lm) # 第t次
+        self.current_state=(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd)
+        self.action=self.choose_action(str(self.state_prior))
+
+        if self.action==0: # 增加种群
+            self.add_entity()
+            # self.add_entity2()
+        elif self.action==1: # 减少种群
+            self.substract_entity()
+            # self.substract_entity2()
+        elif self.action==2: # 更新变异率CR正态分布中值
+            self.update_cr()
+        elif self.action==3: # 增加F值正态分布中值
+            self.add_f()
+        elif self.action==4: # 减小F值正态分布中值
+            self.substract_f()
+        elif self.action==5: # 更新变异策略至最原始的DE变异策略
+            self.update_to_raw_policy()
+        elif self.action==6: # 更新变异策略至DE/best/1
+            self.update_to_best1()
+        elif self.action==7: # 更新变异策略至DE/rand/2
+            self.update_to_rand2()
+        elif self.action==8: # 更新变异策略至NSDE
+            self.update_to_nsde()
+
+    def update_q_table(self,prior_score,current_score):
+        # 将由于fitness_decay_weight 获得的奖励控制在0~100
+        digits=1
+        while abs(current_score-prior_score)/(pow(10,digits))>100:
+            digits+=1
+        self.fitness_decay_weight=1.0/pow(10,digits)
+        reward = self.mean_s_weight* self.mean_s + self.mean_cd_weight * self.mean_cd + self.um * self.um_weight + self.lm * self.lm_weight \
+                 +self.std_s_weight*self.std_s+self.std_cd_weight*self.std_cd+ self.fitness_decay_weight * (prior_score - current_score)
+        self.check_state_exist(str(self.current_state))
+        q_predict=self.q_table.loc[str(self.state_prior),self.action]
+        q_target=reward+self.gamma*self.q_table.loc[str(self.current_state),:].max()
+        self.q_table.loc[str(self.state_prior),self.action]+=self.lr*(q_target-q_predict)
+        self.state_prior=self.current_state
