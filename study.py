@@ -6,6 +6,7 @@ from deBase import DERand1Bin, DECurrentToPBest1Bin
 from jade import JADEWithArchive as JADE
 from sade import SaDE
 from jde import jDE
+from DE_RL import rlde
 from hybrids import LocalJADE, HybridJADE, HybridjDE, sadJADE
 from mixins import LoggingMixin, ParallelCostMixin, ValueToReachMixin
 import time
@@ -33,11 +34,11 @@ The results are exported to Microsoft Excel.
 def study():
     if "--file" in sys.argv:
         f = open('study.out', 'w')
-    algorithms = [DERand1Bin, jDE, SaDE, JADE]
+    algorithms = [DERand1Bin, jDE, SaDE, JADE, rlde]
     repeats = int(sys.argv[1]) # 第一个参数，必须参数
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
-    file_id=str(time.strftime('%d-%m-%Y_%H_%M'))
+    file_id=str(time.strftime('%dd_%mmon_%Y_%Hh_%Mm'))
     wb_name = f'DE_Tests_{file_id}.xlsx'
     print('wb_name:',wb_name)
     worksheets = {}

@@ -1,0 +1,15 @@
+- Run 1 with f1-10d_DERand1Bin
+[ 0.  0. -0.  0. -0. -0. -0. -0.  0. -0.] (cost 0.0)
+
+- Run 1 with f1-10d_jDE
+[-0.  0.  0. -0.  0. -0. -0. -0.  0.  0.] (cost 0.0)
+
+- Run 1 with f1-10d_SaDE
+[-0.  0.  0. -0.  0. -0.  0. -0. -0.  0.] (cost 0.0)
+
+- Run 1 with f1-10d_JADEWithArchive
+[ 0.  0.  0. -0. -0. -0. -0.  0.  0.  0.] (cost 0.0)
+
+- Run 1 with f1-10d_rlde
+[-0.  0. -0. -0.  0.  0. -0.  0.  0.  0.] (cost 0.0)
+

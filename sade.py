@@ -88,7 +88,7 @@ class SaDE(DECurrentToBest2Bin, DERand2Bin, DECurrentToRand1, DERand1Bin):
 
     def _updateStrategyProbabilities(self):
         """
-        更新变异策略
+        更新变异策略概率
         Update the probability of each strategy being selected by examining the
         contents of the success and failure memories.
         """
