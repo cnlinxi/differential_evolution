@@ -11,9 +11,13 @@ from collections import deque
 import pandas as pd
 import itertools
 from copy import deepcopy
+import time
 
 global INF
 INF=float('inf') # 无穷大的数
+
+DEBUG=True
+DEBUG_FILE=True
 
 class DECurrentToBest2Bin(DECurrentToPBest1Bin):
     def mutation(self, *args, **kwargs):
@@ -289,6 +293,14 @@ class rlde(DECurrentToPBest1Bin):
             self.generation += 1
             trialPopulation = self.generateTrialPopulation(self.population.size) # 生成变异重组后的个体
             trialPopulation = self.assignCosts(trialPopulation) # 为变异重组后的种群评分，分数由population.members[i].cost = self.cost(member.vector)形式带回
+
+            if DEBUG:
+                if DEBUG_FILE:
+                    q_table_id=time.strftime('%dd_%mmon_%Y_%Hh_%Mm')
+                    with open('q_table_'+q_table_id, 'a+') as f:
+                        print(f'FEs:{self.functionEvaluations}:', self.q_table,file=f)
+                else:
+                    print(f'FEs:-{self.functionEvaluations}:', self.q_table)
 
             self.update_q_table(np.mean(self.prior_scores),np.mean(trialPopulation.costs))
             self.update_state()
