@@ -64,20 +64,20 @@ class rlde(DECurrentToPBest1Bin):
         self.mean_fitness=INF # 当前适应值的平均值
         self.std_fitness=INF # 当前适应值的方差
 
-        self.Ubound=15000 # population_size 的上界
-        self.Lbound=900 # population_size 的下界
+        self.Ubound=200 # population_size 的上界
+        self.Lbound=50 # population_size 的下界
 
-        self.p=0.05 # 种群缩减策略中，去除的个体占总体的比例
-        self.change_size=10 # 每次执行增加或减少种群的个体数
+        self.p=0.1 # 种群增减策略中没测选取的最优/最差候选个体占总个体的比例
+        self.change_p=0.05 # 每次执行增减种群的占总个体的比例
 
-        self.mean_s_weight=-1 # 平均适应值停滞权重
-        self.mean_cd_weight=-1 # 平均适应值持续下降权重
-        self.std_s_weight=-1 # 方差适应值停滞
-        self.std_cd_weight=-1 #方差适应值持续下降
         self.nm_weight=-2 # 奖赏中，各种状态的权重，停滞观测变量
         self.rm_weight=-0.5 # 冗余观测器变量
+        self.mean_s_weight=-10 # 平均适应值停滞权重
+        self.mean_cd_weight=-1 # 平均适应值持续下降权重
+        self.std_s_weight=-10 # 方差适应值停滞
+        self.std_cd_weight=-1 #方差适应值持续下降
         self.um_weight=-1 # 种群数量维持上界观测器变量
-        self.lm_weight=-1 # 种群数量维持下界观测器变量
+        self.lm_weight=-10 # 种群数量维持下界观测器变量
         self.fitness_decay_weight=1e-8 # 适应值降低奖赏
         self.actions_count=9 # 动作个数
         self.actions=list(range(self.actions_count))
@@ -124,29 +124,35 @@ class rlde(DECurrentToPBest1Bin):
 
     def update_state(self):  # 更新观测器(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd)
         if self.mean_fitness - np.mean(self.population.costs) > self.mean_s_threadhold:
-            self.mean_cd += 1
+            if self.mean_cd<20:
+                self.mean_cd += 1
             self.mean_s = 0
         else:
             self.mean_cd = 0
-            self.mean_s += 1
+            if self.mean_s<20:
+                self.mean_s += 1
         self.mean_fitness = np.mean(self.population.costs)
         self.mean_s_threadhold_q.append(self.mean_fitness - np.mean(self.population.costs))
         if self.population.size >= self.Ubound:
-            self.um += 1
+            if self.um<20:
+                self.um += 1
             self.lm = 0
         elif self.population.size <= self.Lbound:
-            self.lm += 1
+            if self.lm<20:
+                self.lm += 1
             self.um = 0
         if self.std_fitness - np.std(self.population.costs) > self.std_s_threadhold:
-            self.std_cd += 1
+            if self.std_cd <20:
+                self.std_cd += 1
             self.std_s = 0
         else:
             self.std_cd = 0
-            self.std_s += 1
+            if self.std_s <20:
+                self.std_s += 1
         self.std_fitness = np.std(self.population.costs)
         self.std_s_threadhold_q.append(self.std_fitness - np.std(self.population.costs))
         # 使mean_s_threadhold 和 std_s_threadhold 自适应
-        if len(self.mean_s_threadhold_q) >= 5:
+        if len(self.mean_s_threadhold_q) >= 3:
             self.mean_s_threadhold = np.mean(self.mean_s_threadhold_q)
         if len(self.std_s_threadhold_q) >= 5:
             self.std_s_threadhold = np.mean(self.std_s_threadhold_q)
@@ -155,27 +161,30 @@ class rlde(DECurrentToPBest1Bin):
         if not (self.population.size < self.Ubound and self.population.size > self.Lbound):  # 当self.population_size 小于种群上界且大于种群上界
             return
         max_p_best_index=np.ceil(self.p*self.population.size)
-        best_vectors=[]
-        p_best_index=np.random.permutation(max_p_best_index)
-        for i in range(self.change_size):
-            p_best_vector = self.population.members[p_best_index[i]].vector
-            for index,ele in p_best_vector: # 轻微扰动
-                p_best_vector[index]+=np.random.uniform(-1.0/pow(1.0001,self.functionEvaluations),1.0/pow(1.0001,self.functionEvaluations))
-            best_vectors.append(p_best_vector)
-        self.population = np.append(self.population, np.array(best_vectors), axis=0)
+        best_vectors=[] # 是一个Member对象的list
+        p_best_index=np.random.permutation(int(max_p_best_index))
+        change_size=int(np.ceil(self.change_p*self.population.size))
+        for i in range(change_size):
+            p_best = deepcopy(self.population.members[p_best_index[i]])
+            for index,ele in enumerate(p_best.vector): # 轻微扰动
+                p_best.vector[index]+=np.random.uniform(-1.0/pow(1.001,self.functionEvaluations),1.0/pow(1.001,self.functionEvaluations))
+            best_vectors.append(p_best)
+        self.population.members.extend(best_vectors) # population.members是一个Member对象的list
 
     def substract_individual(self):
         if not (self.population.size < self.Ubound and self.population.size > self.Lbound):  # 当self.population_size 小于种群上界且大于种群上界
             return
         max_p_worst_index=np.ceil(self.p*self.population.size)
-        p_worst_index=np.random.permutation(max_p_worst_index)
+        p_worst_index=np.random.permutation(int(max_p_worst_index))
         p_worst_index=[x for x in p_worst_index if x!=0]
-        for i in range(self.change_size):
-            p_worst_vector=self.population.members[-p_worst_index[i]].vector
-            for index,ele in enumerate(self.population):
-                if (ele==p_worst_vector).any(axis=0):
-                    self.population=np.delete(self.population,index,axis=0) # 删除平庸个体
-                    # break #break掉，防止删除多个相同的population
+        change_size=int(np.ceil(self.change_p*self.population.size))
+        for i in range(change_size):
+            p_worst=self.population.members[-p_worst_index[i]]
+            self.population.members.remove(p_worst)
+            # for index,ele in enumerate(self.population.vectors):
+            #     if (ele==p_worst_vector).any(axis=0):
+            #         self.population=np.delete(self.population,index,axis=0) # 删除平庸个体
+            #         # break #break掉，防止删除多个相同的population
 
     def add_f(self):
         if self.f<2.0:
@@ -304,7 +313,8 @@ class rlde(DECurrentToPBest1Bin):
 
             self.update_q_table(np.mean(self.prior_scores),np.mean(trialPopulation.costs))
             self.update_state()
-            self.update_population()
 
             self.selectNextGeneration(trialPopulation) # 生成新种群
+
+            self.update_population()
         return self.population.bestVector

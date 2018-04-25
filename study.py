@@ -35,6 +35,7 @@ def study():
     if "--file" in sys.argv:
         f = open('study.out', 'w')
     algorithms = [DERand1Bin, jDE, SaDE, JADE, rlde]
+    # algorithms = [rlde]
     repeats = int(sys.argv[1]) # 第一个参数，必须参数
     # Initialise Excel workbook
     wb = openpyxl.Workbook()
