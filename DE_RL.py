@@ -12,12 +12,17 @@ import pandas as pd
 import itertools
 from copy import deepcopy
 import time
+import os
 
 global INF
 INF=float('inf') # 无穷大的数
 
 DEBUG=True
 DEBUG_FILE=True
+tmp_id=str(time.strftime('%dd_%mmon_%Y_%Hh_%Mm'))
+tmp_dir='tmp_'+tmp_id
+if not os.path.exists(tmp_dir):
+    os.mkdir(tmp_dir)
 
 class DECurrentToBest2Bin(DECurrentToPBest1Bin):
     def mutation(self, *args, **kwargs):
@@ -87,7 +92,7 @@ class rlde(DECurrentToPBest1Bin):
         self.q_table=pd.DataFrame(columns=self.actions,dtype=np.float64) # 初始 q_table
         self.mean_s_threadhold=5e7 # 自适应
         self.std_s_threadhold=1e9 # 自适用
-        self.mean_s_threadhold_q=deque(maxlen=5)
+        self.mean_s_threadhold_q=deque(maxlen=3)
         self.std_s_threadhold_q=deque(maxlen=5)
 
         self.evolve_policy=0
@@ -136,7 +141,6 @@ class rlde(DECurrentToPBest1Bin):
         if self.population.size >= self.Ubound:
             if self.um<20:
                 self.um += 1
-            self.lm = 0
         elif self.population.size <= self.Lbound:
             if self.lm<20:
                 self.lm += 1
@@ -146,9 +150,9 @@ class rlde(DECurrentToPBest1Bin):
                 self.std_cd += 1
             self.std_s = 0
         else:
-            self.std_cd = 0
             if self.std_s <20:
                 self.std_s += 1
+            self.std_cd = 0
         self.std_fitness = np.std(self.population.costs)
         self.std_s_threadhold_q.append(self.std_fitness - np.std(self.population.costs))
         # 使mean_s_threadhold 和 std_s_threadhold 自适应
@@ -181,10 +185,6 @@ class rlde(DECurrentToPBest1Bin):
         for i in range(change_size):
             p_worst=self.population.members[-p_worst_index[i]]
             self.population.members.remove(p_worst)
-            # for index,ele in enumerate(self.population.vectors):
-            #     if (ele==p_worst_vector).any(axis=0):
-            #         self.population=np.delete(self.population,index,axis=0) # 删除平庸个体
-            #         # break #break掉，防止删除多个相同的population
 
     def add_f(self):
         if self.f<2.0:
@@ -306,7 +306,7 @@ class rlde(DECurrentToPBest1Bin):
             if DEBUG:
                 if DEBUG_FILE:
                     q_table_id=time.strftime('%dd_%mmon_%Y_%Hh_%Mm')
-                    with open('q_table_'+q_table_id, 'a+') as f:
+                    with open(tmp_dir+'/q_table_'+q_table_id, 'a+') as f:
                         print(f'FEs:{self.functionEvaluations}:', self.q_table,file=f)
                 else:
                     print(f'FEs:-{self.functionEvaluations}:', self.q_table)
