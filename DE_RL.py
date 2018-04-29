@@ -58,14 +58,19 @@ class rlde(DECurrentToPBest1Bin):
         self.mean_cd=0 # 平均适应值持续下降
         self.std_s=0 # 方差适应值停滞
         self.std_cd=0 # 方差适应值持续下降
-        self.state_prior=self.current_state=(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd) # 之前一次的state
+        # self.state_prior=self.current_state=(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd) # 之前一次的state
+        self.state_prior=self.state=(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd)
 
         self.min_fitness=INF # 当前适应值最小值
         self.mean_fitness=INF # 当前适应值的平均值
         self.std_fitness=INF # 当前适应值的方差
 
-        self.Ubound=200 # population_size 的上界
-        self.Lbound=50 # population_size 的下界
+        self.Ubound=100 # population_size 的上界
+        self.Lbound=30 # population_size 的下界
+
+        self.add_individual_action=self.substract_individual_action=False
+        self.add_indidual_count=1
+        self.substract_individual_count=1
 
         self.p=0.1 # 种群增减策略中没测选取的最优/最差候选个体占总个体的比例
         self.change_p=0.05 # 每次执行增减种群的占总个体的比例
@@ -73,19 +78,19 @@ class rlde(DECurrentToPBest1Bin):
         self.nm_weight=-2 # 奖赏中，各种状态的权重，停滞观测变量
         self.rm_weight=-0.5 # 冗余观测器变量
         self.mean_s_weight=-10 # 平均适应值停滞权重
-        self.mean_cd_weight=-1 # 平均适应值持续下降权重
+        self.mean_cd_weight=1 # 平均适应值持续下降权重
         self.std_s_weight=-10 # 方差适应值停滞
-        self.std_cd_weight=-1 #方差适应值持续下降
+        self.std_cd_weight=1 #方差适应值持续下降
         self.um_weight=-1 # 种群数量维持上界观测器变量
-        self.lm_weight=-10 # 种群数量维持下界观测器变量
+        self.lm_weight=-1 # 种群数量维持下界观测器变量
         self.fitness_decay_weight=1e-8 # 适应值降低奖赏
-        self.actions_count=9 # 动作个数
+        self.actions_count=8 # 动作个数
         self.actions=list(range(self.actions_count))
         self.lr=0.01 # 学习率
         self.gamma=0.9 # 奖励衰减，使得算法能够看清大局
         self.epsilon=0.9 # 贪婪度
         self.q_table=pd.DataFrame(columns=self.actions,dtype=np.float64) # 初始 q_table
-        self.mean_s_threadhold=5e7 # 自适应
+        self.mean_s_threadhold=5e8 # 自适应
         self.std_s_threadhold=1e9 # 自适用
         self.mean_s_threadhold_q=deque(maxlen=5)
         self.std_s_threadhold_q=deque(maxlen=5)
@@ -124,38 +129,34 @@ class rlde(DECurrentToPBest1Bin):
 
     def update_state(self):  # 更新观测器(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd)
         if self.mean_fitness - np.mean(self.population.costs) > self.mean_s_threadhold:
-            if self.mean_cd<20:
-                self.mean_cd += 1
+            self.mean_cd += 1
             self.mean_s = 0
         else:
             self.mean_cd = 0
-            if self.mean_s<20:
-                self.mean_s += 1
-        self.mean_fitness = np.mean(self.population.costs)
+            self.mean_s += 1
         self.mean_s_threadhold_q.append(self.mean_fitness - np.mean(self.population.costs))
+        self.mean_fitness = np.mean(self.population.costs)
         if self.population.size >= self.Ubound:
-            if self.um<20:
-                self.um += 1
+            self.um += 1
             self.lm = 0
         elif self.population.size <= self.Lbound:
-            if self.lm<20:
-                self.lm += 1
+            self.lm += 1
             self.um = 0
         if self.std_fitness - np.std(self.population.costs) > self.std_s_threadhold:
-            if self.std_cd <20:
-                self.std_cd += 1
+            self.std_cd += 1
             self.std_s = 0
         else:
             self.std_cd = 0
-            if self.std_s <20:
-                self.std_s += 1
-        self.std_fitness = np.std(self.population.costs)
+            self.std_s += 1
         self.std_s_threadhold_q.append(self.std_fitness - np.std(self.population.costs))
+        self.std_fitness = np.std(self.population.costs)
         # 使mean_s_threadhold 和 std_s_threadhold 自适应
-        if len(self.mean_s_threadhold_q) >= 3:
-            self.mean_s_threadhold = np.mean(self.mean_s_threadhold_q)
+        if len(self.mean_s_threadhold_q) >= 5:
+            self.mean_s_threadhold = np.min(self.mean_s_threadhold_q)
         if len(self.std_s_threadhold_q) >= 5:
             self.std_s_threadhold = np.mean(self.std_s_threadhold_q)
+
+        self.state=(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd)
 
     def add_individual(self):
         if not (self.population.size < self.Ubound and self.population.size > self.Lbound):  # 当self.population_size 小于种群上界且大于种群上界
@@ -181,10 +182,6 @@ class rlde(DECurrentToPBest1Bin):
         for i in range(change_size):
             p_worst=self.population.members[-p_worst_index[i]]
             self.population.members.remove(p_worst)
-            # for index,ele in enumerate(self.population.vectors):
-            #     if (ele==p_worst_vector).any(axis=0):
-            #         self.population=np.delete(self.population,index,axis=0) # 删除平庸个体
-            #         # break #break掉，防止删除多个相同的population
 
     def add_f(self):
         if self.f<2.0:
@@ -210,9 +207,9 @@ class rlde(DECurrentToPBest1Bin):
         self.evolve_policy=3
 
     def choose_action(self,state):
-        self.check_state_exist(state)
+        self.check_state_exist(str(state))
         if np.random.uniform()<self.epsilon:
-            state_action=self.q_table.loc[state,:]
+            state_action=self.q_table.loc[str(state),:]
             state_action=state_action.reindex(np.random.permutation(state_action.index)) #重置dataframe的索引（索引随机分配）
             self.action=state_action.idxmax()
         else:
@@ -229,31 +226,53 @@ class rlde(DECurrentToPBest1Bin):
                 )
             )
 
-    def update_population(self):
-        # state=(self.nm,sedlf.rm,self.um,self.lm) # 第t次
-        self.current_state=(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd)
-        action=self.choose_action(str(self.state_prior))
-
-        if action==0: # 增加种群
+    def update_population_size(self):
+        if (float(self.add_indidual_count))/(self.add_indidual_count+self.substract_individual_count)>=0.5:
             self.add_individual()
-        elif action==1: # 减少种群
+            self.add_individual_action=True
+        else:
             self.substract_individual()
-        elif action==2: # 更新变异率CR正态分布中值
+            self.substract_individual_action=True
+
+    def update_population(self,action):
+        if action==0: # 变动种群个体数
+            self.update_population_size()
+        elif action==1: # 更新变异率CR正态分布中值
             self.update_cr()
-        elif action==3: # 增加F值正态分布中值
+        elif action==2: # 增加F值正态分布中值
             self.add_f()
-        elif action==4: # 减小F值正态分布中值
+        elif action==3: # 减小F值正态分布中值
             self.substract_f()
-        elif action==5: # 更新变异策略至1
+        elif action==4: # 更新变异策略至1
             self.update_to_policy1()
-        elif action==6: # 更新变异策略至2
+        elif action==5: # 更新变异策略至2
             self.update_to_policy2()
-        elif action==7: # 更新变异策略至3
+        elif action==6: # 更新变异策略至3
             self.update_to_policy3()
-        elif action==8: # 更新变异策略至4
+        elif action==7: # 更新变异策略至4
             self.update_to_policy4()
 
     def update_q_table(self,prior_score,current_score):
+        if current_score-prior_score<0:
+            if self.add_individual_action:
+                self.add_individual_action=False
+                self.substract_individual_action=False
+                self.add_indidual_count+=1
+            elif self.substract_individual_action:
+                self.substract_individual_action=False
+                self.add_individual_action=False
+                self.substract_individual_count+=1
+        else:
+            if self.add_individual_action:
+                self.add_individual_action=False
+                self.substract_individual_action=False
+                if self.add_indidual_count>1:
+                    self.add_indidual_count-=1
+            elif self.substract_individual_action:
+                self.substract_individual_action=False
+                self.add_individual_action=False
+                self.substract_individual_count-=1
+
         # 将由于fitness_decay_weight 获得的奖励控制在0~100
         digits=1
         while abs(current_score-prior_score)/(pow(10,digits))>100:
@@ -261,11 +280,11 @@ class rlde(DECurrentToPBest1Bin):
         self.fitness_decay_weight=1.0/pow(10,digits)
         reward = self.mean_s_weight* self.mean_s + self.mean_cd_weight * self.mean_cd + self.um * self.um_weight + self.lm * self.lm_weight \
                  +self.std_s_weight*self.std_s+self.std_cd_weight*self.std_cd+ self.fitness_decay_weight * (prior_score - current_score)
-        self.check_state_exist(str(self.current_state))
+        self.check_state_exist(str(self.state)) # self.state: s_, self.state_prior: s
         q_predict=self.q_table.loc[str(self.state_prior),self.action]
-        q_target=reward+self.gamma*self.q_table.loc[str(self.current_state),:].max()
+        q_target=reward+self.gamma*self.q_table.loc[str(self.state),:].max()
         self.q_table.loc[str(self.state_prior),self.action]+=self.lr*(q_target-q_predict)
-        self.state_prior=self.current_state
+        self.state_prior=self.state
 
     def generateTrialMember(self, i):
         strategy=self.strategies[self.evolve_policy]
@@ -300,6 +319,8 @@ class rlde(DECurrentToPBest1Bin):
         self.generation = 0
         while self.terminationCriterion() == False:
             self.generation += 1
+            self.action=self.choose_action(self.state)
+            self.update_population(self.action)
             trialPopulation = self.generateTrialPopulation(self.population.size) # 生成变异重组后的个体
             trialPopulation = self.assignCosts(trialPopulation) # 为变异重组后的种群评分，分数由population.members[i].cost = self.cost(member.vector)形式带回
 
@@ -307,14 +328,12 @@ class rlde(DECurrentToPBest1Bin):
                 if DEBUG_FILE:
                     q_table_id=time.strftime('%dd_%mmon_%Y_%Hh_%Mm')
                     with open('q_table_'+q_table_id, 'a+') as f:
-                        print(f'FEs:{self.functionEvaluations}:', self.q_table,file=f)
+                        print(f'population_size:{self.population.size},FEs:{self.functionEvaluations}:', self.q_table,file=f)
                 else:
-                    print(f'FEs:-{self.functionEvaluations}:', self.q_table)
-
-            self.update_q_table(np.mean(self.prior_scores),np.mean(trialPopulation.costs))
+                    print(f'population_size:{self.population.size},FEs:-{self.functionEvaluations}:', self.q_table)
+            print(f'FEs:{self.functionEvaluations}:population_size:{self.population.size}')
             self.update_state()
+            self.update_q_table(np.mean(self.population.costs),np.mean(trialPopulation.costs))
 
             self.selectNextGeneration(trialPopulation) # 生成新种群
-
-            self.update_population()
         return self.population.bestVector
