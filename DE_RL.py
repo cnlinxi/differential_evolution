@@ -12,12 +12,17 @@ import pandas as pd
 import itertools
 from copy import deepcopy
 import time
+import os
 
 global INF
 INF=float('inf') # 无穷大的数
 
 DEBUG=True
 DEBUG_FILE=True
+tmp_id=str(time.strftime('%dd_%mmon_%Y_%Hh_%Mm'))
+tmp_dir='tmp_'+tmp_id
+if not os.path.exists(tmp_dir):
+    os.mkdir(tmp_dir)
 
 class DECurrentToBest2Bin(DECurrentToPBest1Bin):
     def mutation(self, *args, **kwargs):
@@ -92,7 +97,7 @@ class rlde(DECurrentToPBest1Bin):
         self.q_table=pd.DataFrame(columns=self.actions,dtype=np.float64) # 初始 q_table
         self.mean_s_threadhold=5e8 # 自适应
         self.std_s_threadhold=1e9 # 自适用
-        self.mean_s_threadhold_q=deque(maxlen=5)
+        self.mean_s_threadhold_q=deque(maxlen=3)
         self.std_s_threadhold_q=deque(maxlen=5)
 
         self.evolve_policy=0
