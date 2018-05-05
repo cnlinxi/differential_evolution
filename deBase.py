@@ -98,7 +98,7 @@ class DERand1Bin(object):
             v1, v2 = [self.population.members[j].vector for j in (r.pop(), r.pop())]
             try:
                 difference += v1 - v2
-            except NameError:
+            except NameError: # 如果报“变量没有先定义后使用”，则执行difference = v1 - v2
                 difference = v1 - v2
         return population.Member(baseVector + f * difference)
 

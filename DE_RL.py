@@ -19,10 +19,6 @@ INF=float('inf') # 无穷大的数
 
 DEBUG=True
 DEBUG_FILE=True
-tmp_id=str(time.strftime('%dd_%mmon_%Y_%Hh_%Mm'))
-tmp_dir='tmp_'+tmp_id
-if not os.path.exists(tmp_dir):
-    os.mkdir(tmp_dir)
 
 class DECurrentToBest2Bin(DECurrentToPBest1Bin):
     def mutation(self, *args, **kwargs):
@@ -64,14 +60,14 @@ class rlde(DECurrentToPBest1Bin):
         self.std_s=0 # 方差适应值停滞
         self.std_cd=0 # 方差适应值持续下降
         # self.state_prior=self.current_state=(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd) # 之前一次的state
-        self.state_prior=self.state=(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd)
+        self.state_prior=self.state=(self.mean_s,self.mean_cd,self.std_s,self.std_cd)
 
         self.min_fitness=INF # 当前适应值最小值
         self.mean_fitness=INF # 当前适应值的平均值
         self.std_fitness=INF # 当前适应值的方差
 
-        self.Ubound=100 # population_size 的上界
-        self.Lbound=30 # population_size 的下界
+        self.Ubound=60 # population_size 的上界
+        self.Lbound=40 # population_size 的下界
 
         self.add_individual_action=self.substract_individual_action=False
         self.add_indidual_count=1
@@ -89,7 +85,7 @@ class rlde(DECurrentToPBest1Bin):
         self.um_weight=-1 # 种群数量维持上界观测器变量
         self.lm_weight=-1 # 种群数量维持下界观测器变量
         self.fitness_decay_weight=1e-8 # 适应值降低奖赏
-        self.actions_count=8 # 动作个数
+        self.actions_count=6 # 动作个数
         self.actions=list(range(self.actions_count))
         self.lr=0.01 # 学习率
         self.gamma=0.9 # 奖励衰减，使得算法能够看清大局
@@ -108,25 +104,29 @@ class rlde(DECurrentToPBest1Bin):
         self.strategies=[
             {
                 'algorithm': DERand1Bin,
-                'probability': 0.25,
+                'f': 0.5,
+                'fMemory':deque(maxlen=self.lp),
                 'cr': 0.5,
                 'crMemory': deque(maxlen=self.lp)
             },
             {
                 'algorithm': DECurrentToBest2Bin,
-                'probability': 0.25,
+                'f': 0.5,
+                'fMemory':deque(maxlen=self.lp),
                 'cr': 0.5,
                 'crMemory': deque(maxlen=self.lp)
             },
             {
                 'algorithm': DERand2Bin,
-                'probability': 0.25,
+                'f': 0.5,
+                'fMemory':deque(maxlen=self.lp),
                 'cr': 0.5,
                 'crMemory': deque(maxlen=self.lp)
             },
             {
                 'algorithm': DECurrentToRand1,
-                'probability': 0.25,
+                'f': 0.5,
+                'fMemory':deque(maxlen=self.lp),
                 'cr': 0.5,
                 'crMemory': deque(maxlen=self.lp)
             },
@@ -141,12 +141,6 @@ class rlde(DECurrentToPBest1Bin):
             self.mean_s += 1
         self.mean_s_threadhold_q.append(self.mean_fitness - np.mean(self.population.costs))
         self.mean_fitness = np.mean(self.population.costs)
-        if self.population.size >= self.Ubound:
-            self.um += 1
-            self.lm = 0
-        elif self.population.size <= self.Lbound:
-            self.lm += 1
-            self.um = 0
         if self.std_fitness - np.std(self.population.costs) > self.std_s_threadhold:
             self.std_cd += 1
             self.std_s = 0
@@ -161,7 +155,7 @@ class rlde(DECurrentToPBest1Bin):
         if len(self.std_s_threadhold_q) >= 5:
             self.std_s_threadhold = np.mean(self.std_s_threadhold_q)
 
-        self.state=(self.mean_s,self.mean_cd,self.um,self.lm,self.std_s,self.std_cd)
+        self.state=(self.mean_s,self.mean_cd,self.std_s,self.std_cd)
 
     def add_individual(self):
         if not (self.population.size < self.Ubound and self.population.size > self.Lbound):  # 当self.population_size 小于种群上界且大于种群上界
@@ -188,19 +182,17 @@ class rlde(DECurrentToPBest1Bin):
             p_worst=self.population.members[-p_worst_index[i]]
             self.population.members.remove(p_worst)
 
-    def add_f(self):
-        if self.f<2.0:
-            self.f+=0.1
-
-    def substract_f(self):
-        if self.f>0:
-            self.f-=0.1
-
     def update_cr(self):
         for index,strategy in enumerate(self.strategies):
             flattendedCr=list(itertools.chain.from_iterable(strategy['crMemory']))
             if flattendedCr:
                 self.strategies[index]['cr']=np.median(flattendedCr)
+
+    def update_f(self):
+        for index,strategy in enumerate(self.strategies):
+            flattendedF=list(itertools.chain.from_iterable(strategy['fMemory']))
+            if flattendedF:
+                self.strategies[index]['f']=np.median(flattendedF)
 
     def update_to_policy1(self):
         self.evolve_policy=0
@@ -240,45 +232,20 @@ class rlde(DECurrentToPBest1Bin):
             self.substract_individual_action=True
 
     def update_population(self,action):
-        if action==0: # 变动种群个体数
-            self.update_population_size()
-        elif action==1: # 更新变异率CR正态分布中值
+        if action==0: # 更新变异率CR正态分布中值
             self.update_cr()
-        elif action==2: # 增加F值正态分布中值
-            self.add_f()
-        elif action==3: # 减小F值正态分布中值
-            self.substract_f()
-        elif action==4: # 更新变异策略至1
+        elif action==1: # 更新F值正态分布中值
+            self.update_f()
+        elif action==2: # 更新变异策略至1
             self.update_to_policy1()
-        elif action==5: # 更新变异策略至2
+        elif action==3: # 更新变异策略至2
             self.update_to_policy2()
-        elif action==6: # 更新变异策略至3
+        elif action==4: # 更新变异策略至3
             self.update_to_policy3()
-        elif action==7: # 更新变异策略至4
+        elif action==5: # 更新变异策略至4
             self.update_to_policy4()
 
     def update_q_table(self,prior_score,current_score):
-        if current_score-prior_score<0:
-            if self.add_individual_action:
-                self.add_individual_action=False
-                self.substract_individual_action=False
-                self.add_indidual_count+=1
-            elif self.substract_individual_action:
-                self.substract_individual_action=False
-                self.add_individual_action=False
-                self.substract_individual_count+=1
-        else:
-            if self.add_individual_action:
-                self.add_individual_action=False
-                self.substract_individual_action=False
-                if self.add_indidual_count>1:
-                    self.add_indidual_count-=1
-            elif self.substract_individual_action:
-                self.substract_individual_action=False
-                self.add_individual_action=False
-                self.substract_individual_count-=1
-
-        # 将由于fitness_decay_weight 获得的奖励控制在0~100
         digits=1
         while abs(current_score-prior_score)/(pow(10,digits))>100:
             digits+=1
@@ -292,31 +259,37 @@ class rlde(DECurrentToPBest1Bin):
         self.state_prior=self.state
 
     def generateTrialMember(self, i):
-        strategy=self.strategies[self.evolve_policy]
-        if self.f is None:
-            use_f=np.random.normal(0.5,0.3)
-            self.f=use_f
-        else:
-            use_f=np.random.normal(self.f,0.3)
+        strategy=self.strategies [self.evolve_policy]
+        # while True:
+        #     use_f=np.random.normal(strategy['f'],0.3)
+        #     if use_f>0 and use_f<1:
+        #         break
+        low=0.3*np.random.sample()+0.4 # 产生[0.4,0.7)的随机数
+        high=0.2*np.random.sample()+0.8 # 产生[0.8,1.0)的随机数
+        use_f=np.median((low,high,strategy['f']+ 0.1 * np.random.standard_cauchy()))
         while True:
             cri=np.random.normal(strategy['cr'],0.1)
-            if cri>=0 and cri<=1:
+            if cri>0 and cri<1:
                 break
         mutant=strategy['algorithm'].mutation(self,i,use_f)
         trialMember=strategy['algorithm'].crossover(self,i,mutant,cri)
         trialMember.strategy=self.evolve_policy
         trialMember.cr=cri
+        trialMember.f=use_f
         return trialMember
 
     def generateTrialPopulation(self, *args, **kwargs):
         n=len(self.strategies)
         for i in range(n):
             self.strategies[i]['crMemory'].append([])
+        for i in range(n):
+            self.strategies[i]['fMemory'].append([])
         self.prior_scores=deepcopy(self.population.costs)
         return super(rlde, self).generateTrialPopulation(*args, **kwargs)
 
     def trialMemberSuccess(self, i, trialMember):
         self.strategies[trialMember.strategy]['crMemory'][-1].append(trialMember.cr)
+        self.strategies[trialMember.strategy]['fMemory'][-1].append(trialMember.f)
         super(rlde,self).trialMemberSuccess(i,trialMember)
 
     def optimise(self):
