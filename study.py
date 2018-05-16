@@ -6,7 +6,8 @@ from deBase import DERand1Bin, DECurrentToPBest1Bin
 from jade import JADEWithArchive as JADE
 from sade import SaDE
 from jde import jDE
-from DE_RL import rlde
+# from DE_RL import rlde
+from DE_DDQN import rlde
 from hybrids import LocalJADE, HybridJADE, HybridjDE, sadJADE
 from mixins import LoggingMixin, ParallelCostMixin, ValueToReachMixin
 import time
