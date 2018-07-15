@@ -18,9 +18,6 @@ class ejDE(jDE):
     """
     def __init__(self, *args, **kwargs):
         super(ejDE, self).__init__(*args, **kwargs)
-        for i in range(self.population.size):
-            self.population.members[i].f = 0.1 + 0.9 * np.random.rand()
-            self.population.members[i].cr = np.random.rand()
 
         self.p=0.2
         self.change_p=0.1
@@ -57,6 +54,7 @@ class ejDE(jDE):
             trialPopulation = self.generateTrialPopulation(self.population.size)
             trialPopulation = self.assignCosts(trialPopulation)
             self.selectNextGeneration(trialPopulation)
+            #####
             self.mean_std=np.mean(np.std(self.population.vectors,axis=0,ddof=1))
             # print(f'generation:{self.generation},len std:{len(np.std(self.population.vectors,axis=0,ddof=1))}, mean_std:{self.mean_std}')
             if self.mean_std<self.threadhold:

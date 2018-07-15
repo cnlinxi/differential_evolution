@@ -6,8 +6,8 @@ from deBase import DERand1Bin, DECurrentToPBest1Bin
 from jade import JADEWithArchive as JADE
 from sade import SaDE
 from jde import jDE
-# from DE_RL import rlde
-from DE_DDQN import rlde
+from DE_RL import rlde
+# from DE_DDQN import rlde
 from hybrids import LocalJADE, HybridJADE, HybridjDE, sadJADE
 from mixins import LoggingMixin, ParallelCostMixin, ValueToReachMixin
 import time
@@ -35,6 +35,9 @@ The results are exported to Microsoft Excel.
 def study():
     if "--file" in sys.argv:
         f = open('study.out', 'w')
+    if "--n_features" in sys.argv:
+        i = sys.argv.index("--n_features")
+        n_features = sys.argv[i+1]
     # algorithms = [DERand1Bin, jDE, SaDE, JADE, rlde]
     algorithms = [rlde]
     # algorithms=[dqde]

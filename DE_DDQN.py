@@ -241,6 +241,10 @@ class rlde(DECurrentToPBest1Bin):
             trialPopulation = self.generateTrialPopulation(self.population.size) # 生成变异重组后的个体
             trialPopulation = self.assign_population_costs(trialPopulation) # 为变异重组后的种群评分，分数由population.members[i].cost = self.cost(member.vector)形式带回
             self.selectNextGeneration(trialPopulation) # 生成新种群
+<<<<<<< HEAD
+            # self.update_population_size()
+=======
             self.update_population_size()
+>>>>>>> 3bcb3db40eaef5b03cad30f85105df93bf417552
             print(f'Evaluation:{self.functionEvaluations}, Current Cost:{np.mean(self.population.costs)}, Population size:{self.population.size}')
         return self.population.bestVector
